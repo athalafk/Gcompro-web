@@ -6,7 +6,6 @@ export const getApiDocs = async () => {
     definition: {
       openapi: "3.0.0",
       info: { title: "GCompro Swagger API", version: "0.1" },
-      servers: [{ url: "http://localhost:3000" }],
       components: {
         schemas: {
           GradeBucket: {
