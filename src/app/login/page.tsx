@@ -1,4 +1,3 @@
-// app/(auth)/login/page.tsx
 "use client";
 import { login } from "./actions";
 import Link from "next/link";
