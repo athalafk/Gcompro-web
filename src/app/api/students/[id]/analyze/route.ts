@@ -41,7 +41,10 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
 
   const res = await fetch(`${process.env.AI_BASE_URL}/predict`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { 
+      "Content-Type": "application/json",
+      "x-api-key": process.env.AI_API_KEY!,
+     },
     body: JSON.stringify(payload),
   });
   if (!res.ok) return NextResponse.json({ error: "AI service error" }, { status: 502 });
