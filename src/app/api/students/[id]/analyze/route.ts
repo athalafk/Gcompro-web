@@ -50,6 +50,7 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
 
   // simpan ke ml_features + advice
   const supabase = createAdminClient();
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { data: lastSem } = await supabase
     .from("v_student_semester_scores")
     .select("semester_no")
