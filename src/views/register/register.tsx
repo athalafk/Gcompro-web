@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { useFormState, useFormStatus } from "react-dom";
-import { signup } from "@/app/models/actions/register";
+import { signup } from "@/models/actions/register";
 
-import { AuthFormState } from "@/app/models/types/auth/auth";
+import { AuthFormState } from "@/models/types/auth/auth";
 
 const initialState: AuthFormState = { error: null };
 

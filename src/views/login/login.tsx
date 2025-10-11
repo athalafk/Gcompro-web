@@ -1,7 +1,7 @@
 'use client';
 
 import Link from "next/link";
-import { login } from "@/app/models/actions/login";
+import { login } from "@/models/actions/login";
 
 export default function LoginView() {
   return (

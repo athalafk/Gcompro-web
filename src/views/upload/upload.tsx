@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from "react";
-import { UploadResult } from "@/app/models/types/upload/upload";
+import { UploadResult } from "@/models/types/upload/upload";
 
 export default function UploadView() {
   const [file, setFile] = useState<File | null>(null);

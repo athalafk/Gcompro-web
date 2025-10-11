@@ -1,5 +1,5 @@
 import { createAdminClient } from "./supabase";
-import { Features } from "@/app/models/types/students/risk";
+import { Features } from "@/models/types/students/risk";
 
 export async function extractFeatures(studentId: string): Promise<Features> {
   const supabase = createAdminClient();

@@ -87,7 +87,7 @@ export default function AuthConfirmedView() {
                     href="/" 
                     className="text-blue-600 hover:text-blue-800 font-semibold underline transition duration-150"
                 >
-                    login
+                    aplikasi
                 </Link>
                 .
             </p>

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState, useEffect } from "react";
-import { Student } from "@/app/models/types/students/students";
+import { Student } from "@/models/types/students/students";
 import LoadingSpinner from "@/components/loading/loading-spinner";
 
 async function getStudents(): Promise<Student[]> {

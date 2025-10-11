@@ -2,7 +2,7 @@
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer,
 } from "recharts";
-import { GpaTrendRow } from "@/app/models/types/students/students";
+import { GpaTrendRow } from "@/models/types/students/students";
 
 export default function GpaTrend({ data }: { data: GpaTrendRow[] }) {
   return (

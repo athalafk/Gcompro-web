@@ -44,7 +44,7 @@
 import { NextResponse } from "next/server";
 import { parse } from "csv-parse/sync";
 import { createAdminClient } from "@/lib/supabase";
-import { GradeRow } from "@/app/models/types/upload/upload";
+import { GradeRow } from "@/models/types/upload/upload";
 
 export const dynamic = "force-dynamic";
 

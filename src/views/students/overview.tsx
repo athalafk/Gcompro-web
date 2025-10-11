@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import GpaTrend from "@/components/charts/GpaTrend";
-import { OverviewData, MergedGpaTrendData } from "@/app/models/types/students/students";
+import { OverviewData, MergedGpaTrendData } from "@/models/types/students/students";
 import { getOverview } from "@/services/students";
 import LoadingSpinner from "@/components/loading/loading-spinner";
 

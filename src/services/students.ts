@@ -1,10 +1,10 @@
 import { 
   OverviewData
-} from "@/app/models/types/students/students";
+} from "@/models/types/students/students";
 import {
   PrereqMap, 
   AIResult 
-} from "@/app/models/types/students/risk";
+} from "@/models/types/students/risk";
 
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "";
 

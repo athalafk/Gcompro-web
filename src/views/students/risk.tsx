@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import PrereqGraph from "@/components/prereq/PrereqGraph";
-import { PrereqNode, PrereqLink, AIResult } from "@/app/models/types/students/risk";
+import { PrereqNode, PrereqLink, AIResult } from "@/models/types/students/risk";
 import { getPrereqMap,analyzeRisk } from "@/services/students";
 import LoadingSpinner from "@/components/loading/loading-spinner";
 
