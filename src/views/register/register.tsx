@@ -1,32 +1,49 @@
 'use client';
 
+import { FormEvent, useState } from "react";
 import Link from "next/link";
-import { useFormState, useFormStatus } from "react-dom";
-import { signup } from "@/models/actions/register";
-
-import { AuthFormState } from "@/models/types/auth/auth";
-
-const initialState: AuthFormState = { error: null };
-
-function SubmitButton() {
-  const { pending } = useFormStatus();
-  return (
-    <button
-      className="w-full rounded bg-indigo-600 text-white py-2 disabled:opacity-60 hover:underline pointer-fine:cursor-pointer"
-      type="submit"
-      disabled={pending}
-    >
-      {pending ? "Mendaftar..." : "Daftar"}
-    </button>
-  );
-}
+import { useRouter } from "next/navigation";
 
 export default function RegisterView() {
-  const [state, formAction] = useFormState(signup, initialState);
+  const router = useRouter();
+  const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const formData = new FormData(form);
+    const email = (formData.get("email") as string)?.trim();
+    const password = formData.get("password") as string;
+
+    setPending(true);
+    setError(null);
+
+    try {
+      const res = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error ?? "Registrasi gagal. Coba lagi.");
+        return;
+      }
+
+      router.refresh();
+      router.push(`/register/sent?email=${encodeURIComponent(email ?? "")}`);
+    } catch {
+      setError("Terjadi kesalahan. Silakan coba lagi.");
+    } finally {
+      setPending(false);
+    }
+  }
 
   return (
     <main className="min-h-screen flex items-center justify-center p-6">
-      <form action={formAction} className="w-full max-w-sm space-y-4 border rounded-xl p-6">
+      <form onSubmit={handleSubmit} className="w-full max-w-sm space-y-4 border rounded-xl p-6">
         <h1 className="text-xl font-semibold">Daftar Akun Baru</h1>
 
         <div className="space-y-1">
@@ -51,9 +68,15 @@ export default function RegisterView() {
           />
         </div>
 
-        {state.error && <p className="text-sm text-red-600">{state.error}</p>}
+        {error && <p className="text-sm text-red-600">{error}</p>}
 
-        <SubmitButton />
+        <button
+          className="w-full rounded bg-indigo-600 text-white py-2 disabled:opacity-60 hover:underline pointer-fine:cursor-pointer"
+          type="submit"
+          disabled={pending}
+        >
+          {pending ? "Mendaftar..." : "Daftar"}
+        </button>
 
         <p className="text-center text-sm">
           Sudah punya akun?{" "}

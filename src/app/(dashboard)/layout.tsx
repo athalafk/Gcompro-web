@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/utils/supabase/server";
+import { LogoutButton } from "@/components/auth/logout-button";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const supabase = createClient();
@@ -22,14 +23,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
             {user ? (
               <>
                 <span className="text-sm text-gray-700">{user.email}</span>
-                <form action="/api/auth/logout" method="post">
-                  <button
-                    type="submit"
-                    className="px-3 py-1 border rounded hover:bg-gray-100 text-sm"
-                  >
-                    Logout
-                  </button>
-                </form>
+                <LogoutButton />
               </>
             ) : (
               <Link href="/login" className="text-sm underline">
