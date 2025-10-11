@@ -1,12 +1,12 @@
 /**
  * @swagger
  * /api/auth/logout:
- * post:
- * summary: Melakukan logout pengguna dan menghapus sesi.
- * tags: [Auth]
- * responses:
- * 302:
- * description: Redirects to the /login page after successful sign out.
+ *   post:
+ *     summary: Sign out the active Supabase session and redirect to the login page.
+ *     tags: [Auth]
+ *     responses:
+ *       302:
+ *         description: Redirect to `/login` after the session is cleared.
  */
 
 import { NextResponse } from "next/server";

@@ -1,6 +1,6 @@
 /**
  * @swagger
- * /api/ai/students/{id}/analyze:
+ * /api/students/{id}/analyze:
  *   post:
  *     summary: Analisis risiko untuk 1 mahasiswa (jalankan AI, simpan hasil, lalu kembalikan ringkasan)
  *     tags: [AI]

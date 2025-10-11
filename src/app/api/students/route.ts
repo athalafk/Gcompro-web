@@ -1,25 +1,34 @@
 /**
  * @swagger
  * /api/students:
- * get:
- * summary: Daftar semua mahasiswa
- * tags: [Students]
- * responses:
- * 200:
- * description: OK
- * content:
- * application/json:
- * schema:
- * type: array
- * items:
- * type: object
- * properties:
- * id: { type: string, format: uuid, example: "9f9a4212-0761-482d-8b01-a20c35f2010d" }
- * nim: { type: string, nullable: true, example: "13519001" }
- * nama: { type: string, example: "Alice" }
- * 500:
- * description: Error query Supabase
+ *   get:
+ *     summary: Daftar semua mahasiswa
+ *     tags: [Students]
+ *     responses:
+ *       200:
+ *         description: OK
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 type: object
+ *                 properties:
+ *                   id:
+ *                     type: string
+ *                     format: uuid
+ *                     example: "9f9a4212-0761-482d-8b01-a20c35f2010d"
+ *                   nim:
+ *                     type: string
+ *                     nullable: true
+ *                     example: "13519001"
+ *                   nama:
+ *                     type: string
+ *                     example: "Alice"
+ *       500:
+ *         description: Error query Supabase
  */
+
 
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
