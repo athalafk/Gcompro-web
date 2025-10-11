@@ -1,9 +1,5 @@
 import { createAdminClient } from "./supabase";
-
-export type Features = {
-  gpa_cum: number; ips_last: number; delta_ips: number;
-  mk_gagal_total: number; sks_tunda: number; pct_d: number; pct_e: number; repeat_count: number;
-};
+import { Features } from "@/app/models/types/students/risk";
 
 export async function extractFeatures(studentId: string): Promise<Features> {
   const supabase = createAdminClient();

@@ -2,10 +2,9 @@
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer,
 } from "recharts";
+import { GpaTrendRow } from "@/app/models/types/students/students";
 
-type Row = { semester_no: number; ips?: number; ipk_cum?: number };
-
-export default function GpaTrend({ data }: { data: Row[] }) {
+export default function GpaTrend({ data }: { data: GpaTrendRow[] }) {
   return (
     <div className="h-72 w-full rounded-2xl border p-4 pb-8">
       <h3 className="font-semibold mb-2">Tren IPK & IPS per Semester</h3>

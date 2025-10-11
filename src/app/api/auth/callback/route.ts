@@ -1,3 +1,27 @@
+/**
+ * @swagger
+ * /api/auth/callback:
+ * get:
+ * summary: Supabase Auth Callback endpoint (Email/OAuth redirection handler)
+ * tags: [Auth]
+ * parameters:
+ * - in: query
+ * name: code
+ * schema: { type: string }
+ * description: Code parameter provided by Supabase for session exchange.
+ * - in: query
+ * name: callbackUrl
+ * schema: { type: string }
+ * description: Optional URL to redirect to after successful exchange. Defaults to '/'.
+ * - in: query
+ * name: error
+ * schema: { type: string }
+ * description: Error message from Supabase/Auth Provider.
+ * responses:
+ * 302:
+ * description: Redirects to '/auth/confirmed' (success) or '/auth/confirmed?status=error' (failure/error).
+ */
+
 import { NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
 

@@ -44,15 +44,7 @@
 import { NextResponse } from "next/server";
 import { parse } from "csv-parse/sync";
 import { createAdminClient } from "@/lib/supabase";
-
-type GradeRow = {
-  nim: string;
-  kode: string;
-  semester_no: string | number;
-  tahun_ajaran: string;
-  grade_index: "A"|"B"|"C"|"D"|"E";
-  sks: string | number;
-};
+import { GradeRow } from "@/app/models/types/upload/upload";
 
 export const dynamic = "force-dynamic";
 
