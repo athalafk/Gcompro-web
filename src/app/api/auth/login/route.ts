@@ -10,11 +10,12 @@
  *         application/json:
  *           schema:
  *             type: object
- *             required: [email, password]
+ *             required: [nim, password]
  *             properties:
- *               email:
+ *               nim:
  *                 type: string
- *                 format: email
+ *                 description: Student Identification Number.
+ *                 example: "1301320001"
  *               password:
  *                 type: string
  *                 minLength: 6
@@ -52,7 +53,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/server";
 
 type LoginPayload = {
-  email?: unknown;
+  nim?: unknown;
   password?: unknown;
 };
 
@@ -67,25 +68,24 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const email = typeof body.email === "string" ? body.email.trim() : "";
+  const nim = typeof body.nim === "string" ? body.nim.trim() : "";
   const password = typeof body.password === "string" ? body.password : "";
 
-  if (!email || !password) {
+  if (!nim || !password) {
     return NextResponse.json(
-      { error: "Email dan password wajib diisi." },
+      { error: "NIM dan password wajib diisi." },
       { status: 400 }
     );
   }
 
+  const email = `${nim}@campus.ac.id`;
+
   try {
     const supabase = await createClient();
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 401 });
+      return NextResponse.json({ error: "NIM atau password salah." }, { status: 401 });
     }
 
     return NextResponse.json({

@@ -13,7 +13,8 @@ export default function LoginView() {
     event.preventDefault();
     const form = event.currentTarget;
     const formData = new FormData(form);
-    const email = (formData.get("email") as string)?.trim();
+
+    const nim = (formData.get("nim") as string)?.trim();
     const password = formData.get("password") as string;
 
     setPending(true);
@@ -23,7 +24,7 @@ export default function LoginView() {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ nim, password }),
       });
       const data = await res.json();
 
@@ -47,12 +48,12 @@ export default function LoginView() {
         <h1 className="text-xl font-semibold">Masuk</h1>
 
         <div className="space-y-1">
-          <label className="text-sm">Email</label>
+          <label className="text-sm">NIM (Nomor Induk Mahasiswa)</label>
           <input
             className="w-full border rounded p-2"
-            type="email"
-            name="email"
-            placeholder="admin@campus.ac.id"
+            type="text"
+            name="nim"
+            placeholder="Contoh: 13200001"
             required
           />
         </div>
@@ -76,12 +77,12 @@ export default function LoginView() {
           {pending ? "Memproses..." : "Masuk"}
         </button>
 
-        <p className="text-center text-sm mt-3">
+        {/* <p className="text-center text-sm mt-3">
           Belum punya akun?{" "}
           <Link href="/register" className="text-blue-600 hover:underline">
             Daftar di sini
           </Link>
-        </p>
+        </p> */}
       </form>
     </main>
   );

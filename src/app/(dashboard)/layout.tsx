@@ -8,6 +8,18 @@ export default async function DashboardLayout({ children }: { children: React.Re
     data: { user },
   } = await (await supabase).auth.getUser();
 
+  let fullName: string | null = null;
+
+  if (user) {
+    const { data: profile } = await (await supabase)
+      .from("profiles")
+      .select("full_name")
+      .eq("id", user.id)
+      .single();
+
+    fullName = profile?.full_name ?? null;
+  }
+
   return (
     <div>
       <header className="border-b">
@@ -20,9 +32,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
           {/* kanan: user info + logout */}
           <div className="flex items-center gap-3">
-            {user ? (
+            {fullName ? (
               <>
-                <span className="text-sm text-gray-700">{user.email}</span>
+                <span className="text-sm text-gray-700">{fullName}</span>
                 <LogoutButton />
               </>
             ) : (
