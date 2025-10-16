@@ -31,20 +31,37 @@
 
 
 import { NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase";
+import { createClient } from "@/utils/supabase/server";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
-  const supabase = createAdminClient();
-  const { data, error } = await supabase
-    .from("students")
-    .select("id, nim, nama")
-    .order("nim");
+export async function GET(request: Request) {
+  const supabase = await createClient();
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { data: profile, error: profErr } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .single();
+
+  if (profErr) return NextResponse.json({ error: profErr.message }, { status: 500 });
+
+  const url = new URL(request.url);
+  const wantAll = url.searchParams.get("all") === "1";
+
+  const query = supabase.from("students").select("id, nim, nama").order("nim");
+
+  if (wantAll) {
+    if (profile?.role !== "admin") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
   }
+
+  const { data, error } = await query;
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   return NextResponse.json(data);
 }
