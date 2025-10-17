@@ -3,8 +3,11 @@ import { createAdminClient } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(_req: NextRequest, ctx: { params: { id: string } }) {
-  const { id: studentId } = ctx.params;
+export async function GET(
+  _req: NextRequest,
+  ctx: { params: Promise<{ id: string }> }
+) {
+  const { id: studentId } = await ctx.params;
   const supabase = createAdminClient();
 
   const { data: adv, error: advErr } = await supabase
