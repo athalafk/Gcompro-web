@@ -6,20 +6,28 @@ const PUBLIC_FILE = /\.(.*)$/
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
-  
+
   if (pathname.includes('.') || pathname.startsWith('/_next') || PUBLIC_FILE.test(pathname)) {
-    return NextResponse.next();
+    return NextResponse.next()
   }
-  
+
+  if (
+    pathname.startsWith('/api/ai/worker') ||
+    pathname.match(/^\/api\/students\/[^/]+\/analyze$/) ||
+    pathname.match(/^\/api\/students\/[^/]+\/risk\/latest$/)
+  ) {
+    return NextResponse.next()
+  }
+
   if (
     pathname.startsWith('/register') ||
     pathname.startsWith('/login') ||
     pathname.startsWith('/auth/confirmed') ||
     pathname.startsWith('/error')
   ) {
-    return NextResponse.next();
+    return NextResponse.next()
   }
-  
+
   return await updateSession(request)
 }
 
