@@ -75,7 +75,7 @@ export async function POST(
     if (!base) {
       return NextResponse.json({ error: "AI_BASE_URL is not set" }, { status: 500 });
     }
-    const aiServiceUrl = joinUrl(base, "predict/");
+    const aiServiceUrl = joinUrl(base, "/predict");
 
     const res = await fetch(aiServiceUrl, {
       method: "POST",
