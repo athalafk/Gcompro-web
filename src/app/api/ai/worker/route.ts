@@ -11,13 +11,13 @@ function joinUrl(base: string, path: string): string {
 const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms));
 
 // === Throttle & Retry config ===
-const BATCH_LIMIT = parseInt(process.env.WORKER_BATCH_LIMIT || "25", 10);
+const BATCH_LIMIT = parseInt(process.env.WORKER_BATCH_LIMIT || "100", 10);
 const MIN_DELAY_MS = parseInt(process.env.WORKER_MIN_DELAY_MS || "350", 10);
 const JITTER_MS = parseInt(process.env.WORKER_JITTER_MS || "100", 10);
 const BASE_BACKOFF_SEC = parseInt(process.env.WORKER_BASE_BACKOFF_SEC || "30", 10);
 const MAX_BACKOFF_MIN = parseInt(process.env.WORKER_MAX_BACKOFF_MIN || "60", 10);
 const WORKER_TOKEN = process.env.WORKER_TOKEN;
-const AI_URL_BASE = process.env.NEW_AI_BASE_URL || "https://tututz-gcompro.hf.space";
+const AI_URL_BASE = process.env.AI_BASE_URL || "";
 const AI_ENDPOINT = joinUrl(AI_URL_BASE, "predict/");
 
 function nextBackoffMs(attempts: number): number {
