@@ -8,38 +8,110 @@
  *       - in: path
  *         name: id
  *         required: true
- *         schema: { type: string, format: uuid }
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: UUID mahasiswa (kolom `students.id`)
  *     responses:
  *       200:
  *         description: OK
  *         content:
  *           application/json:
  *             schema:
- *               type: object
- *               properties:
- *                 trend:
- *                   type: array
- *                   items:
- *                     type: object
- *                     properties:
- *                       semester_no: { type: integer }
- *                       ips: { type: number, format: float, example: 3.12 }
- *                 cum:
- *                   type: array
- *                   items:
- *                     type: object
- *                     properties:
- *                       semester_no: { type: integer }
- *                       ipk_cum: { type: number, format: float, example: 3.01 }
- *                 dist:
- *                   type: array
- *                   items:
- *                     $ref: '#/components/schemas/GradeBucket'
- *                 risk_level:
- *                   type: string
- *                   enum: [LOW, MED, HIGH]
+ *               $ref: '#/components/schemas/StudentOverviewResponse'
+ *             examples:
+ *               sample:
+ *                 summary: Contoh respons
+ *                 value:
+ *                   trend:
+ *                     - { semester_no: 1, ips: 3.12 }
+ *                     - { semester_no: 2, ips: 2.98 }
+ *                   cum:
+ *                     - { semester_no: 1, ipk_cum: 3.12 }
+ *                     - { semester_no: 2, ipk_cum: 3.05 }
+ *                   dist:
+ *                     - { grade_index: "A", count: 5 }
+ *                     - { grade_index: "B", count: 3 }
+ *                     - { grade_index: "C", count: 1 }
+ *                     - { grade_index: "D", count: 0 }
+ *                     - { grade_index: "E", count: 0 }
+ *                   risk_level: "LOW"
  *       500:
  *         description: Error query Supabase
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *             examples:
+ *               db_error:
+ *                 value:
+ *                   error: "relation v_student_semester_scores does not exist"
+ *
+ * components:
+ *   schemas:
+ *     StudentOverviewResponse:
+ *       type: object
+ *       additionalProperties: false
+ *       properties:
+ *         trend:
+ *           type: array
+ *           items:
+ *             $ref: '#/components/schemas/TrendItem'
+ *         cum:
+ *           type: array
+ *           items:
+ *             $ref: '#/components/schemas/CumulativeItem'
+ *         dist:
+ *           type: array
+ *           items:
+ *             $ref: '#/components/schemas/GradeBucket'
+ *         risk_level:
+ *           type: string
+ *           description: Risk level terbaru dari `ml_features` (default LOW jika tidak ada record).
+ *           enum: [LOW, MED, HIGH]
+ *       required: [trend, cum, dist, risk_level]
+ *
+ *     TrendItem:
+ *       type: object
+ *       additionalProperties: false
+ *       properties:
+ *         semester_no:
+ *           type: integer
+ *         ips:
+ *           type: number
+ *           format: float
+ *       required: [semester_no, ips]
+ *
+ *     CumulativeItem:
+ *       type: object
+ *       additionalProperties: false
+ *       properties:
+ *         semester_no:
+ *           type: integer
+ *         ipk_cum:
+ *           type: number
+ *           format: float
+ *       required: [semester_no, ipk_cum]
+ *
+ *     GradeBucket:
+ *       type: object
+ *       additionalProperties: false
+ *       properties:
+ *         grade_index:
+ *           type: string
+ *           enum: [A, B, C, D, E]
+ *         count:
+ *           type: integer
+ *           minimum: 0
+ *       required: [grade_index, count]
+ *
+ *     ErrorResponse:
+ *       type: object
+ *       additionalProperties: false
+ *       properties:
+ *         error:
+ *           type: string
+ *       required: [error]
  */
 
 

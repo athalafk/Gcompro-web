@@ -1,3 +1,160 @@
+/**
+ * @swagger
+ * /api/ai/worker:
+ *   post:
+ *     summary: Jalankan batch worker AI Jobs (pending & due)
+ *     description: |
+ *       Worker mengambil job `pending` yang sudah `due` dari tabel `ai_jobs`,
+ *       menjalankan ekstraksi fitur, memanggil service AI, menyimpan ringkasan ke `ml_features` & `advice`,
+ *       serta mengelola retry/backoff untuk error 429/5xx atau respons AI yang tidak valid.
+ *
+ *       **Auth:** wajib menyertakan header `x-worker-token`.
+ *
+ *       **Dry-run:** tambahkan query `?dry=1` untuk hanya melihat antrian (tanpa eksekusi).
+ *     tags: [Worker]
+ *     operationId: runAiWorker
+ *     parameters:
+ *       - in: header
+ *         name: x-worker-token
+ *         required: true
+ *         description: Token rahasia untuk mengotorisasi worker.
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: dry
+ *         required: false
+ *         description: Set `1` untuk dry-run (hanya preview job, tanpa proses).
+ *         schema:
+ *           type: string
+ *           enum: ["1"]
+ *     responses:
+ *       200:
+ *         description: Hasil eksekusi atau dry-run.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               oneOf:
+ *                 - $ref: '#/components/schemas/WorkerRunResponse'
+ *                 - $ref: '#/components/schemas/WorkerDryRunResponse'
+ *             examples:
+ *               run_ok:
+ *                 summary: Eksekusi normal (ada job yang diproses)
+ *                 value:
+ *                   ok: true
+ *                   processed: 17
+ *                   batch: 42
+ *               run_empty:
+ *                 summary: Tidak ada job due
+ *                 value:
+ *                   ok: true
+ *                   processed: 0
+ *                   message: "No pending jobs ready."
+ *               dry_preview:
+ *                 summary: Dry-run (preview beberapa job terdepan)
+ *                 value:
+ *                   ok: true
+ *                   dry: true
+ *                   queued: 5
+ *                   preview:
+ *                     - { id: "f8a1…", student_id: "a0b1…", attempts: 0 }
+ *                     - { id: "e2c3…", student_id: "c2d3…", attempts: 1 }
+ *       401:
+ *         description: Token worker tidak valid atau tidak disediakan.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *             examples:
+ *               unauthorized:
+ *                 value: { error: "Unauthorized" }
+ *       500:
+ *         description: Kesalahan server internal (mis. gagal query jobs).
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorWithDetails'
+ *             examples:
+ *               fetch_failed:
+ *                 value:
+ *                   error: "Failed to fetch jobs"
+ *                   details: "relation ai_jobs does not exist"
+ *
+ * components:
+ *   schemas:
+ *     WorkerRunResponse:
+ *       type: object
+ *       additionalProperties: false
+ *       properties:
+ *         ok:
+ *           type: boolean
+ *           example: true
+ *         processed:
+ *           type: integer
+ *           minimum: 0
+ *           description: Jumlah job yang benar-benar berhasil diproses pada batch ini.
+ *         batch:
+ *           type: integer
+ *           minimum: 0
+ *           description: Total job yang diambil pada batch ini (due & pending).
+ *         message:
+ *           type: string
+ *           description: Pesan tambahan (mis. "No pending jobs ready.").
+ *       required: [ok]
+ *
+ *     WorkerDryRunResponse:
+ *       type: object
+ *       additionalProperties: false
+ *       properties:
+ *         ok:
+ *           type: boolean
+ *           example: true
+ *         dry:
+ *           type: boolean
+ *           example: true
+ *         queued:
+ *           type: integer
+ *           minimum: 0
+ *           description: Total job yang masuk antrian saat ini (diambil untuk preview).
+ *         preview:
+ *           type: array
+ *           maxItems: 5
+ *           items:
+ *             $ref: '#/components/schemas/JobPreview'
+ *       required: [ok, dry, queued]
+ *
+ *     JobPreview:
+ *       type: object
+ *       additionalProperties: false
+ *       properties:
+ *         id:
+ *           type: string
+ *           format: uuid
+ *         student_id:
+ *           type: string
+ *           format: uuid
+ *         attempts:
+ *           type: integer
+ *           minimum: 0
+ *       required: [id, student_id, attempts]
+ *
+ *     ErrorResponse:
+ *       type: object
+ *       additionalProperties: false
+ *       properties:
+ *         error:
+ *           type: string
+ *       required: [error]
+ *
+ *     ErrorWithDetails:
+ *       allOf:
+ *         - $ref: '#/components/schemas/ErrorResponse'
+ *         - type: object
+ *           properties:
+ *             details:
+ *               type: string
+ */
+
+
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { extractFeatures } from "@/lib/features";

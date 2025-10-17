@@ -18,9 +18,18 @@ export type Features = {
   IPK_Ternormalisasi_SKS: number;
 };
 
+export type RiskMeta = { semester_id: string | null; created_at: string } | null;
+
 export type AnalyzeResponse = {
   feat: Features;
   ai: AIRawResult;
+  meta?: RiskMeta;
+};
+
+export type LatestRiskResponse = {
+  feat: Features | null;
+  ai: AIRawResult | null;
+  meta?: RiskMeta;
 };
 
 /**
@@ -66,7 +75,10 @@ export async function analyzeRisk(
   const res = await fetch(url.toString(), {
     method: "POST",
     cache: "no-store",
-    headers: opts?.debug ? { "x-debug": "1" } : undefined,
+    headers: {
+      Accept: "application/json",
+      ...(opts?.debug ? { "x-debug": "1" } : {}),
+    },
   });
 
   if (!res.ok) {
@@ -74,28 +86,33 @@ export async function analyzeRisk(
     try {
       const body = await res.json();
       message = body?.message || body?.error || message;
-    } catch {
-    }
+    } catch {}
     throw new Error(`AI analysis failed: ${message}`);
   }
-
-  const json = (await res.json()) as AnalyzeResponse;
-  if (!json?.ai?.prediction) {
-    throw new Error("AI analysis succeeded but response format is invalid (missing ai.prediction).");
-  }
-  return json;
+  
+  const json = await res.json();
+  const resp: AnalyzeResponse = {
+    feat: json?.feat ?? {},
+    ai: json?.ai ?? { prediction: "" },
+    meta: (json?.meta ?? null) as RiskMeta,
+  };
+  return resp;
 }
 
-export async function getLatestRisk(id: string): Promise<{
-  found: boolean;
-  ai?: { prediction: string; probabilities?: Record<string, number> };
-  ml?: { risk_level: "HIGH"|"MED"|"LOW"; cluster_label?: number; delta_ips?: number; ips_last?: number; gpa_cum?: number };
-  meta?: { semester_id?: string; created_at?: string };
-}> {
-  const res = await fetch(`${BASE_URL}/api/students/${id}/risk/latest`, { cache: "no-store" });
-  if (!res.ok) {
-    const errorBody = await res.json().catch(() => ({ message: res.statusText }));
-    throw new Error(`Failed to fetch latest risk: ${errorBody.message}`);
-  }
-  return res.json();
+
+// services/students.ts
+export async function getLatestRisk(studentId: string): Promise<LatestRiskResponse | null> {
+  const res = await fetch(`/api/students/${studentId}/risk/latest`, {
+    method: "GET",
+    headers: { Accept: "application/json" },
+    cache: "no-store",
+  });
+  if (!res.ok) return null;
+
+  const json = await res.json();
+  if (json?.found === false) return { feat: null, ai: null, meta: null };
+
+  const { feat = null, ai = null, meta = null } = json as LatestRiskResponse;
+  return { feat, ai, meta };
 }
+

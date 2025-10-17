@@ -3,8 +3,9 @@
 import { useState, useEffect, useMemo } from "react";
 import PrereqGraph from "@/components/prereq/PrereqGraph";
 import LoadingSpinner from "@/components/loading/loading-spinner";
-import type { PrereqNode, PrereqLink, AIRawResult } from "@/models/types/students/risk";
-import type { Features, AnalyzeResponse } from "@/services/students";
+import type { PrereqNode, PrereqLink } from "@/models/types/students/risk";
+import type { Features, RiskMeta } from "@/services/students";
+import { AIRawResult } from "@/models/types/students/risk";
 import { getPrereqMap, getLatestRisk, analyzeRisk } from "@/services/students";
 
 function mapRiskForUi(label: string): "HIGH" | "MED" | "LOW" {
@@ -19,7 +20,7 @@ export default function StudentsRiskView({ studentId }: { studentId: string }) {
   const [links, setLinks] = useState<PrereqLink[]>([]);
   const [ai, setAi] = useState<AIRawResult | null>(null);
   const [feat, setFeat] = useState<Features | null>(null);
-  const [latestMeta, setLatestMeta] = useState<{ semester_id?: string; created_at?: string } | null>(null);
+  const [latestMeta, setLatestMeta] = useState<RiskMeta | null>(null);
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -29,19 +30,21 @@ export default function StudentsRiskView({ studentId }: { studentId: string }) {
     let mounted = true;
     (async () => {
       try {
-        const [{ nodes, links }, latest] = await Promise.all([
+        const [prereq, latest] = await Promise.all([
           getPrereqMap(studentId),
           getLatestRisk(studentId),
         ]);
         if (!mounted) return;
-        setNodes(nodes);
-        setLinks(links);
+        setNodes(prereq.nodes);
+        setLinks(prereq.links);
 
-        if (latest?.found && latest.ai) {
-          setAi(latest.ai);
+        if (latest) {
+          setAi(latest.ai ?? null);
+          setFeat(latest.feat ?? null);
           setLatestMeta(latest.meta ?? null);
         } else {
           setAi(null);
+          setFeat(null);
           setLatestMeta(null);
         }
       } catch (e) {
@@ -51,26 +54,17 @@ export default function StudentsRiskView({ studentId }: { studentId: string }) {
         if (mounted) setInitialLoading(false);
       }
     })();
-    return () => {
-      mounted = false;
-    };
+    return () => { mounted = false; };
   }, [studentId]);
 
-  // Tombol: jalankan analisis ulang (on-demand) → langsung tampilkan hasil dari response
   async function handleRefresh() {
     setLoading(true);
     setError(null);
     try {
-      const result: AnalyzeResponse = await analyzeRisk(studentId);
+      const result = await analyzeRisk(studentId);
       setFeat(result?.feat ?? null);
       setAi(result?.ai ?? null);
-      // opsional: sinkron lagi dengan DB jika suatu saat analyze jadi async save
-      // const latest = await getLatestRisk(studentId);
-      // if (latest?.found && latest.ai) {
-      //   setAi(latest.ai);
-      //   setLatestMeta(latest.meta ?? null);
-      // }
-      setLatestMeta({});
+      setLatestMeta(result?.meta ?? null);
     } catch (e) {
       console.error(e);
       setError("Gagal menyegarkan analisis.");
@@ -162,64 +156,77 @@ export default function StudentsRiskView({ studentId }: { studentId: string }) {
 
       <PrereqGraph nodes={nodes} links={links} />
 
-      {ai && (
+      {(ai || feat) && (
         <section className="rounded-2xl border p-4 space-y-3">
-          {chip}
-          {extraInfo}
+          {ai && chip}
+          {ai && extraInfo}
 
           {feat && (
             <div className="mt-3">
-              <h4 className="font-semibold mb-1">Ringkas Fitur (saat refresh)</h4>
+              <h4 className="font-semibold mb-1">Ringkas Fitur</h4>
               <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2 text-sm">
-                <div className="p-2 rounded-lg bg-slate-50">
-                  IPK Terakhir:{" "}
-                  <b>{feat.IPK_Terakhir?.toFixed?.(2) ?? feat.IPK_Terakhir}</b>
-                </div>
-                <div className="p-2 rounded-lg bg-slate-50">
-                  IPS Terakhir:{" "}
-                  <b>{feat.IPS_Terakhir?.toFixed?.(2) ?? feat.IPS_Terakhir}</b>
-                </div>
-                <div className="p-2 rounded-lg bg-slate-50">
-                  Total SKS: <b>{feat.Total_SKS}</b>
-                </div>
-                <div className="p-2 rounded-lg bg-slate-50">
-                  IPS Tertinggi: <b>{feat.IPS_Tertinggi}</b>
-                </div>
-                <div className="p-2 rounded-lg bg-slate-50">
-                  IPS Terendah: <b>{feat.IPS_Terendah}</b>
-                </div>
-                <div className="p-2 rounded-lg bg-slate-50">
-                  Rentang IPS: <b>{feat.Rentang_IPS}</b>
-                </div>
-                <div className="p-2 rounded-lg bg-slate-50">
-                  MK Gagal: <b>{feat.Jumlah_MK_Gagal}</b>
-                </div>
-                <div className="p-2 rounded-lg bg-slate-50">
-                  Total SKS Gagal: <b>{feat.Total_SKS_Gagal}</b>
-                </div>
-                <div className="p-2 rounded-lg bg-slate-50">
-                  Tren IPS (slope):{" "}
-                  <b>
-                    {feat.Tren_IPS_Slope?.toFixed?.(4) ?? feat.Tren_IPS_Slope}
-                  </b>
-                </div>
-                <div className="p-2 rounded-lg bg-slate-50">
-                  Profil Tren: <b>{feat.Profil_Tren}</b>
-                </div>
-                <div className="p-2 rounded-lg bg-slate-50">
-                  Δ Kinerja (IPS−IPK):{" "}
-                  <b>
-                    {feat.Perubahan_Kinerja_Terakhir?.toFixed?.(2) ??
-                      feat.Perubahan_Kinerja_Terakhir}
-                  </b>
-                </div>
-                <div className="p-2 rounded-lg bg-slate-50">
-                  IPK Ternormalisasi SKS:{" "}
-                  <b>
-                    {feat.IPK_Ternormalisasi_SKS?.toFixed?.(2) ??
-                      feat.IPK_Ternormalisasi_SKS}
-                  </b>
-                </div>
+                {"IPK_Terakhir" in feat && (
+                  <div className="p-2 rounded-lg bg-slate-50">
+                    IPK Terakhir: <b>{feat.IPK_Terakhir?.toFixed?.(2) ?? feat.IPK_Terakhir}</b>
+                  </div>
+                )}
+                {"IPS_Terakhir" in feat && (
+                  <div className="p-2 rounded-lg bg-slate-50">
+                    IPS Terakhir: <b>{feat.IPS_Terakhir?.toFixed?.(2) ?? feat.IPS_Terakhir}</b>
+                  </div>
+                )}
+                {"Total_SKS" in feat && (
+                  <div className="p-2 rounded-lg bg-slate-50">
+                    Total SKS: <b>{feat.Total_SKS}</b>
+                  </div>
+                )}
+                {"IPS_Tertinggi" in feat && (
+                  <div className="p-2 rounded-lg bg-slate-50">
+                    IPS Tertinggi: <b>{feat.IPS_Tertinggi}</b>
+                  </div>
+                )}
+                {"IPS_Terendah" in feat && (
+                  <div className="p-2 rounded-lg bg-slate-50">
+                    IPS Terendah: <b>{feat.IPS_Terendah}</b>
+                  </div>
+                )}
+                {"Rentang_IPS" in feat && (
+                  <div className="p-2 rounded-lg bg-slate-50">
+                    Rentang IPS: <b>{feat.Rentang_IPS}</b>
+                  </div>
+                )}
+                {"Jumlah_MK_Gagal" in feat && (
+                  <div className="p-2 rounded-lg bg-slate-50">
+                    MK Gagal: <b>{feat.Jumlah_MK_Gagal}</b>
+                  </div>
+                )}
+                {"Total_SKS_Gagal" in feat && (
+                  <div className="p-2 rounded-lg bg-slate-50">
+                    Total SKS Gagal: <b>{feat.Total_SKS_Gagal}</b>
+                  </div>
+                )}
+                {"Tren_IPS_Slope" in feat && (
+                  <div className="p-2 rounded-lg bg-slate-50">
+                    Tren IPS (slope): <b>{feat.Tren_IPS_Slope?.toFixed?.(4) ?? feat.Tren_IPS_Slope}</b>
+                  </div>
+                )}
+                {"Profil_Tren" in feat && (
+                  <div className="p-2 rounded-lg bg-slate-50">
+                    Profil Tren: <b>{feat.Profil_Tren}</b>
+                  </div>
+                )}
+                {"Perubahan_Kinerja_Terakhir" in feat && (
+                  <div className="p-2 rounded-lg bg-slate-50">
+                    Δ Kinerja (IPS−IPK):{" "}
+                    <b>{feat.Perubahan_Kinerja_Terakhir?.toFixed?.(2) ?? feat.Perubahan_Kinerja_Terakhir}</b>
+                  </div>
+                )}
+                {"IPK_Ternormalisasi_SKS" in feat && (
+                  <div className="p-2 rounded-lg bg-slate-50">
+                    IPK Ternormalisasi SKS:{" "}
+                    <b>{feat.IPK_Ternormalisasi_SKS?.toFixed?.(2) ?? feat.IPK_Ternormalisasi_SKS}</b>
+                  </div>
+                )}
               </div>
             </div>
           )}
