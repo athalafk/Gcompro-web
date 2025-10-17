@@ -62,18 +62,24 @@ type AiResponse = {
   probabilities?: Record<string, number>;
 };
 
-export async function POST(_req: NextRequest, ctx: { params: { id: string } }) {
-  const { id: studentId } = ctx.params;
+export async function POST(
+  _req: NextRequest,
+  ctx: { params: Promise<{ id: string }> }
+) {
+  const { id: studentId } = await ctx.params;
 
   try {
     const featuresForApi = await extractFeatures(studentId);
 
-    const base = process.env.AI_BASE_URL!;
+    const base = process.env.AI_BASE_URL;
+    if (!base) {
+      return NextResponse.json({ error: "AI_BASE_URL is not set" }, { status: 500 });
+    }
     const aiServiceUrl = joinUrl(base, "predict/");
 
     const res = await fetch(aiServiceUrl, {
       method: "POST",
-      headers: { "Content-Type": "application/json","Accept": "application/json" },
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
       body: JSON.stringify(featuresForApi),
     });
 
@@ -96,7 +102,7 @@ export async function POST(_req: NextRequest, ctx: { params: { id: string } }) {
       .eq("student_id", studentId)
       .order("semester_no", { ascending: true });
 
-    const ipsList = (vsss ?? []).map(r => Number(r.ips ?? 0));
+    const ipsList = (vsss ?? []).map((r) => Number(r.ips ?? 0));
     const deltaIps =
       ipsList.length >= 2 ? ipsList[ipsList.length - 1] - ipsList[ipsList.length - 2] : 0;
 
@@ -107,11 +113,11 @@ export async function POST(_req: NextRequest, ctx: { params: { id: string } }) {
       {
         student_id: studentId,
         semester_id: semesterIdForSave,
-        gpa_cum: featuresForApi.IPK_Terakhir,
-        ips_last: featuresForApi.IPS_Terakhir,
+        gpa_cum: (featuresForApi as any).IPK_Terakhir,
+        ips_last: (featuresForApi as any).IPS_Terakhir,
         delta_ips: deltaIps,
-        mk_gagal_total: featuresForApi.Jumlah_MK_Gagal,
-        sks_tunda: featuresForApi.Total_SKS_Gagal,
+        mk_gagal_total: (featuresForApi as any).Jumlah_MK_Gagal,
+        sks_tunda: (featuresForApi as any).Total_SKS_Gagal,
 
         pct_d: 0,
         pct_e: 0,
