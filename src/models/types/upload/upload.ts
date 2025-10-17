@@ -16,7 +16,7 @@ export type UploadResult = {
     skipped_students: number;
     skipped_courses: number;
     samples: {
-        missing_students: any[];
-        missing_courses: any[];
+      missing_students: any[];
+      missing_courses: any[];
     };
 };

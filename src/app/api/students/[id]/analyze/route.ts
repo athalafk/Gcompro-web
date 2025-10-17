@@ -1,3 +1,7 @@
+import { NextRequest, NextResponse } from "next/server";
+import { createAdminClient } from "@/lib/supabase";
+import { extractFeatures } from "@/lib/features";
+
 /**
  * @swagger
  * /api/students/{id}/analyze:
@@ -8,7 +12,9 @@
  *       - in: path
  *         name: id
  *         required: true
- *         schema: { type: string, format: uuid }
+ *         schema:
+ *           type: string
+ *           format: uuid
  *         description: Student UUID
  *     responses:
  *       200:
@@ -21,69 +27,124 @@
  *                 feat:
  *                   $ref: '#/components/schemas/Features'
  *                 ai:
- *                   $ref: '#/components/schemas/AIResult'
+ *                   type: object
+ *                   properties:
+ *                     prediction:
+ *                       type: string
+ *                     probabilities:
+ *                       type: object
  *       502:
  *         description: Gagal memanggil service AI
  */
 
+function joinUrl(base: string, path: string): string {
+  const b = base.replace(/\/+$/, "");
+  const p = path.replace(/^\/?/, "");
+  return `${b}/${p}`;
+}
 
-import { NextRequest, NextResponse } from "next/server";
-import { extractFeatures, toVector } from "@/lib/features";
-import { createAdminClient } from "@/lib/supabase";
+function mapRiskForDb(label: string): "HIGH" | "MED" | "LOW" {
+  const L = (label || "").toLowerCase();
+  if (L.includes("tinggi")) return "HIGH";
+  if (L.includes("sedang")) return "MED";
+  return "LOW";
+}
 
-export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  const { id: studentId } = await ctx.params;
+function mapRiskToCluster(label: string): number {
+  const L = (label || "").toLowerCase();
+  if (L.includes("tinggi")) return 2;
+  if (L.includes("sedang")) return 1;
+  return 0;
+}
 
-  const feat = await extractFeatures(studentId);
-  const payload = {
-    rows: [{ student_id: studentId, features: toVector(feat) }],
-  };
+type AiResponse = {
+  prediction: string;
+  probabilities?: Record<string, number>;
+};
 
-  const res = await fetch(`${process.env.AI_BASE_URL}/predict`, {
-    method: "POST",
-    headers: { 
-      "Content-Type": "application/json",
-      "x-api-key": process.env.AI_API_KEY!,
-     },
-    body: JSON.stringify(payload),
-  });
-  if (!res.ok) return NextResponse.json({ error: "AI service error" }, { status: 502 });
+export async function POST(_req: NextRequest, ctx: { params: { id: string } }) {
+  const { id: studentId } = ctx.params;
 
-  const [out] = await res.json();
+  try {
+    const featuresForApi = await extractFeatures(studentId);
 
-  // simpan ke ml_features + advice
-  const supabase = createAdminClient();
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { data: lastSem } = await supabase
-    .from("v_student_semester_scores")
-    .select("semester_no")
-    .eq("student_id", studentId)
-    .order("semester_no", { ascending: false })
-    .limit(1).maybeSingle();
+    const base = process.env.AI_BASE_URL!;
+    const aiServiceUrl = joinUrl(base, "predict/");
 
-  // temukan semester_id dari semester_no terakhir (opsional)
-  const { data: sem } = await supabase
-    .from("semesters")
-    .select("id, nomor, tahun_ajaran")
-    .order("nomor", { ascending: false })
-    .limit(1).maybeSingle();
+    const res = await fetch(aiServiceUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json","Accept": "application/json" },
+      body: JSON.stringify(featuresForApi),
+    });
 
-  await supabase.from("ml_features").upsert({
-    student_id: studentId,
-    semester_id: sem?.id ?? null,
-    ...feat,
-    cluster_label: out.cluster_label,
-    risk_level: out.risk_level,
-    distance: out.distance,
-  }, { onConflict: "student_id,semester_id" });
+    if (!res.ok) {
+      const bodyText = await res.text().catch(() => "");
+      console.error("AI service error:", res.status, bodyText);
+      return NextResponse.json(
+        { error: `AI service error: Status ${res.status}` },
+        { status: 502 }
+      );
+    }
 
-  await supabase.from("advice").insert({
-    student_id: studentId,
-    semester_id: sem?.id ?? null,
-    risk_level: out.risk_level,
-    reasons: out.reasons,
-    actions: out.actions,
-  });
+    const aiResult = (await res.json()) as AiResponse;
 
-  return NextResponse.json({ feat, ai: out });
+    const supabase = createAdminClient();
+
+    const { data: vsss } = await supabase
+      .from("v_student_semester_scores")
+      .select("semester_id, semester_no, ips")
+      .eq("student_id", studentId)
+      .order("semester_no", { ascending: true });
+
+    const ipsList = (vsss ?? []).map(r => Number(r.ips ?? 0));
+    const deltaIps =
+      ipsList.length >= 2 ? ipsList[ipsList.length - 1] - ipsList[ipsList.length - 2] : 0;
+
+    const lastRow = (vsss ?? []).at(-1);
+    const semesterIdForSave: string | null = (lastRow?.semester_id as any) ?? null;
+
+    const { error: upsertErr } = await supabase.from("ml_features").upsert(
+      {
+        student_id: studentId,
+        semester_id: semesterIdForSave,
+        gpa_cum: featuresForApi.IPK_Terakhir,
+        ips_last: featuresForApi.IPS_Terakhir,
+        delta_ips: deltaIps,
+        mk_gagal_total: featuresForApi.Jumlah_MK_Gagal,
+        sks_tunda: featuresForApi.Total_SKS_Gagal,
+
+        pct_d: 0,
+        pct_e: 0,
+        repeat_count: 0,
+        mk_prasyarat_gagal: 0,
+
+        cluster_label: mapRiskToCluster(aiResult.prediction),
+        risk_level: mapRiskForDb(aiResult.prediction),
+        distance: 0,
+      },
+      { onConflict: "student_id,semester_id" }
+    );
+
+    if (upsertErr) {
+      console.error("ml_features upsert error:", upsertErr);
+    }
+
+    const { error: adviceErr } = await supabase.from("advice").insert({
+      student_id: studentId,
+      semester_id: semesterIdForSave,
+      risk_level: aiResult.prediction,
+      reasons: { source_label: aiResult.prediction, note: "Mapped to enum for ml_features" },
+      actions: { info: "To be generated by separate logic" },
+    });
+
+    if (adviceErr) {
+      console.error("advice insert error:", adviceErr);
+    }
+
+    return NextResponse.json({ feat: featuresForApi, ai: aiResult });
+  } catch (error) {
+    console.error("Unexpected error:", error);
+    const msg = error instanceof Error ? error.message : "Internal Server Error";
+    return NextResponse.json({ error: "Internal Server Error", details: msg }, { status: 500 });
+  }
 }

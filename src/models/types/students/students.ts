@@ -1,4 +1,4 @@
-import { RiskLevel } from "../auth/auth";
+import { RiskLevel } from "./risk";
 
 /** Tipe data dasar Mahasiswa */
 export type Student = {

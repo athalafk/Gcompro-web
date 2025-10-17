@@ -4,6 +4,6 @@ import StudentsView from "@/views/students/students";
 
 export default async function StudentsPage() {
   return (
-      <StudentsView />
+    <StudentsView />
   );
 }
