@@ -85,3 +85,17 @@ export async function analyzeRisk(
   }
   return json;
 }
+
+export async function getLatestRisk(id: string): Promise<{
+  found: boolean;
+  ai?: { prediction: string; probabilities?: Record<string, number> };
+  ml?: { risk_level: "HIGH"|"MED"|"LOW"; cluster_label?: number; delta_ips?: number; ips_last?: number; gpa_cum?: number };
+  meta?: { semester_id?: string; created_at?: string };
+}> {
+  const res = await fetch(`${BASE_URL}/api/students/${id}/risk/latest`, { cache: "no-store" });
+  if (!res.ok) {
+    const errorBody = await res.json().catch(() => ({ message: res.statusText }));
+    throw new Error(`Failed to fetch latest risk: ${errorBody.message}`);
+  }
+  return res.json();
+}
