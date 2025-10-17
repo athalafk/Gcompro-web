@@ -37,12 +37,6 @@ import { extractFeatures } from "@/lib/features";
  *         description: Gagal memanggil service AI
  */
 
-function joinUrl(base: string, path: string): string {
-  const b = base.replace(/\/+$/, "");
-  const p = path.replace(/^\/?/, "");
-  return `${b}/${p}`;
-}
-
 function mapRiskForDb(label: string): "HIGH" | "MED" | "LOW" {
   const L = (label || "").toLowerCase();
   if (L.includes("tinggi")) return "HIGH";
@@ -75,7 +69,7 @@ export async function POST(
     if (!base) {
       return NextResponse.json({ error: "AI_BASE_URL is not set" }, { status: 500 });
     }
-    const aiServiceUrl = joinUrl(base, "/predict");
+    const aiServiceUrl = `${base}/predict/`;
 
     const res = await fetch(aiServiceUrl, {
       method: "POST",
