@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
 import { FormEvent, useState } from "react";
-// import Link from "next/link";
 import { useRouter } from "next/navigation";
+import Image from "next/image"; 
 
 export default function LoginView() {
   const router = useRouter();
@@ -34,7 +34,7 @@ export default function LoginView() {
       }
 
       router.refresh();
-      router.push("/");
+      router.push("/dashboard");
     } catch {
       setError("Terjadi kesalahan. Silakan coba lagi.");
     } finally {
@@ -43,47 +43,83 @@ export default function LoginView() {
   }
 
   return (
-    <main className="min-h-screen flex items-center justify-center p-6">
-      <form onSubmit={handleSubmit} className="w-full max-w-sm space-y-4 border rounded-xl p-6">
-        <h1 className="text-xl font-semibold">Masuk</h1>
-
-        <div className="space-y-1">
-          <label className="text-sm">NIM (Nomor Induk Mahasiswa)</label>
-          <input
-            className="w-full border rounded p-2"
-            type="text"
-            name="nim"
-            placeholder="Contoh: 13200001"
-            required
-          />
+    <main
+      className="w-screen h-screen flex items-center justify-center"
+      style={{ backgroundColor: "#f3f8ff" }}
+    >
+      <div className="flex w-full h-full">
+        <div className="hidden md:flex w-1/2 p-10 items-center justify-center">
+          <div className="relative w-full max-w-md h-auto">
+            {" "}
+            <Image
+              src="/Login-pict.svg" 
+              alt="Ilustrasi Login SIPANDAI"
+              width={400} 
+              height={400} 
+              style={{ objectFit: "contain" }} 
+              priority 
+            />
+          </div>
         </div>
 
-        <div className="space-y-1">
-          <label className="text-sm">Password</label>
-          <input
-            className="w-full border rounded p-2"
-            type="password"
-            name="password"
-            required
-          />
-        </div>
-
-        {error && <p className="text-sm text-red-600">{error}</p>}
-
-        <button
-          className="w-full rounded bg-black text-white py-2 disabled:opacity-60 hover:underline pointer-fine:cursor-pointer"
-          disabled={pending}
+        <div
+          className="w-full md:w-1/2 p-8 md:p-12 flex flex-col justify-center"
+          style={{ backgroundColor: "#ffffff" }}
         >
-          {pending ? "Memproses..." : "Masuk"}
-        </button>
+          <h1 className="text-2xl font-bold text-gray-800 mb-2">
+            Selamat Datang di <span className="text-blue-600">SIPANDAI</span>
+          </h1>
+          <p className="text-sm text-gray-600 mb-8">
+            Sistem Informasi Pemantauan Data Akademik Integratif
+          </p>
 
-        {/* <p className="text-center text-sm mt-3">
-          Belum punya akun?{" "}
-          <Link href="/register" className="text-blue-600 hover:underline">
-            Daftar di sini
-          </Link>
-        </p> */}
-      </form>
+          <form onSubmit={handleSubmit} className="w-full space-y-5">
+            <div className="space-y-1">
+              <label
+                htmlFor="nim"
+                className="text-sm font-medium text-gray-700"
+              >
+                NIM
+              </label>
+              <input
+                id="nim"
+                className="w-full border border-gray-300 rounded-md p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                type="text"
+                name="nim"
+                placeholder="Masukkan NIM Anda"
+                required
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label
+                htmlFor="password"
+                className="text-sm font-medium text-gray-700"
+              >
+                Kata Sandi
+              </label>
+              <input
+                id="password"
+                className="w-full border border-gray-300 rounded-md p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                type="password"
+                name="password"
+                placeholder="Masukkan kata sandi"
+                required
+              />
+            </div>
+
+            {error && <p className="text-sm text-red-600 pt-1">{error}</p>}
+
+            <button
+              className="w-full rounded-md bg-blue-600 text-white py-3 font-semibold disabled:opacity-60 hover:bg-blue-700 transition duration-200 ease-in-out"
+              type="submit"
+              disabled={pending}
+            >
+              {pending ? "Memproses..." : "Masuk"}
+            </button>
+          </form>
+        </div>
+      </div>
     </main>
   );
 }
