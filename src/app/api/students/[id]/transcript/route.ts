@@ -1,15 +1,15 @@
 /**
  * @swagger
  * /api/students/{id}/transcript:
- *   get:
- *     summary: Transkrip mata kuliah mahasiswa (per semester)
+ *   post:
+ *     summary: Cari/Filter transkrip mahasiswa (by semester & nama MK)
  *     description: |
- *       Mengambil daftar mata kuliah yang diambil mahasiswa, termasuk semester, kode/nama MK, SKS, nilai, dan status kelulusan.
- *       - Endpoint **memerlukan sesi Supabase yang valid** (cookie/token).
- *       - Jika user **admin**, pembacaan dilakukan dengan service-role client (bypass RLS) untuk akses lintas mahasiswa.
- *       - Data diambil langsung dari tabel `enrollments` (tanpa view) dengan join ke `courses`.
+ *       Mengembalikan daftar mata kuliah (transkrip) untuk mahasiswa tertentu.
+ *       - `semester_no`: nomor semester (jika 0/diabaikan → semua semester)
+ *       - `search`: pencarian parsial pada **nama** mata kuliah (case-insensitive)
+ *       - Endpoint **memerlukan sesi Supabase**. Jika user **admin**, query dijalankan dengan service-role (bypass RLS).
  *     tags: [Students]
- *     operationId: getStudentTranscript
+ *     operationId: searchStudentTranscript
  *     parameters:
  *       - in: path
  *         name: id
@@ -18,6 +18,25 @@
  *         schema:
  *           type: string
  *           format: uuid
+ *     requestBody:
+ *       required: false
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/TranscriptSearchRequest'
+ *           examples:
+ *             all_semesters:
+ *               summary: Semua semester, tanpa pencarian
+ *               value: {}
+ *             specific_semester:
+ *               summary: Hanya semester 3
+ *               value: { semester_no: 3 }
+ *             search_name:
+ *               summary: Cari MK mengandung kata "kalkulus"
+ *               value: { search: "kalkulus" }
+ *             combined:
+ *               summary: Semester 2 dan nama mengandung "jaringan"
+ *               value: { semester_no: 2, search: "jaringan" }
  *     responses:
  *       200:
  *         description: OK
@@ -30,24 +49,18 @@
  *             examples:
  *               sample:
  *                 value:
- *                   - semester_no: 1
- *                     kode: "IF101"
- *                     nama: "Pengantar Informatika"
+ *                   - semester_no: 2
+ *                     kode: "IF201"
+ *                     nama: "Struktur Data"
  *                     sks: 3
- *                     nilai: "A"
- *                     status: "lulus"
- *                   - semester_no: 1
- *                     kode: "MA101"
- *                     nama: "Kalkulus I"
- *                     sks: 3
- *                     nilai: "B"
+ *                     nilai: "AB"
  *                     status: "lulus"
  *                   - semester_no: 2
  *                     kode: "MA102"
  *                     nama: "Kalkulus II"
  *                     sks: 3
- *                     nilai: "D"
- *                     status: "tidak lulus"
+ *                     nilai: "C"
+ *                     status: "lulus"
  *       401:
  *         description: Unauthorized (tidak ada sesi Supabase).
  *         content:
@@ -69,30 +82,40 @@
  *
  * components:
  *   schemas:
+ *     TranscriptSearchRequest:
+ *       type: object
+ *       additionalProperties: false
+ *       properties:
+ *         semester_no:
+ *           type: integer
+ *           minimum: ""
+ *           description: Nomor semester; tidak diisi berarti semua semester.
+ *           example: 3
+ *         search:
+ *           type: string
+ *           description: Pencarian parsial pada nama mata kuliah (case-insensitive).
+ *           example: "kalkulus"
+ *
  *     TranscriptItem:
  *       type: object
  *       additionalProperties: false
  *       properties:
  *         semester_no:
  *           type: integer
- *           description: Nomor semester pengambilan MK.
  *         kode:
  *           type: string
- *           description: Kode mata kuliah.
  *         nama:
  *           type: string
- *           description: Nama mata kuliah.
  *         sks:
  *           type: integer
- *           description: Bobot SKS mata kuliah.
  *         nilai:
  *           type: string
  *           nullable: true
  *           description: Indeks huruf (A/AB/B/BC/C/D/E) atau null jika belum ada.
  *         status:
  *           type: string
- *           description: Status kelulusan berdasarkan kolom `kelulusan` (di-normalisasi).
- *           enum: [lulus, tidak lulus]
+ *           enum: [Lulus, Tidak Lulus, ""]
+ *           description: Normalisasi dari kolom `kelulusan` (kosong jika tidak terdefinisi).
  *       required: [semester_no, kode, nama, sks, status]
  *
  *     ErrorResponse:
@@ -120,9 +143,8 @@ type TranscriptItem = {
   status: string;
 };
 
-export async function GET(_req: NextRequest, context: { params: Promise<{ id: string }> }) {
+export async function POST(req: NextRequest, context: { params: Promise<{ id: string }> }) {
   const { id: studentId } = await context.params;
-  // --- Auth (sesi user)
   const supabaseUser = await createClient();
   const {
     data: { user },
@@ -130,35 +152,51 @@ export async function GET(_req: NextRequest, context: { params: Promise<{ id: st
   } = await supabaseUser.auth.getUser();
 
   if (userErr) return NextResponse.json({ error: userErr.message }, { status: 500 });
-  if (!user)   return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  // --- Ambil role
   const { data: profile, error: profErr } = await supabaseUser
     .from("profiles")
     .select("role")
     .eq("id", user.id)
     .single();
-
   if (profErr) return NextResponse.json({ error: profErr.message }, { status: 500 });
 
-  // Admin => service-role client (bypass RLS untuk baca lintas mahasiswa)
   const isAdmin = profile?.role === "admin";
   const db = isAdmin ? await createAdminClient() : supabaseUser;
 
-  // --- Ambil data transkrip tanpa view
-  const { data, error } = await db
+  let body: { semester_no?: number; search?: string };
+  try {
+    body = (await req.json()) ?? {};
+  } catch {
+    body = {};
+  }
+
+  const semesterNo = Number(body?.semester_no ?? 0);
+  const search = body?.search?.trim() || null;
+
+  let query = db
     .from("enrollments")
-    .select(`
+    .select(
+      `
       semester_no,
       grade_index,
       kelulusan,
-      course:course_id(kode, nama, sks)
-    `)
+      course:courses!inner(kode, nama, sks)
+    `
+    )
     .eq("student_id", studentId);
 
+  if (semesterNo && semesterNo > 0) {
+    query = query.eq("semester_no", semesterNo);
+  }
+
+  if (search && search.length > 0) {
+    query = query.ilike("course.nama", `%${search}%`);
+  }
+
+  const { data, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  // --- Bentuk payload akhir
   const items: TranscriptItem[] = (data ?? [])
     .map((row: any) => {
 
@@ -167,11 +205,13 @@ export async function GET(_req: NextRequest, context: { params: Promise<{ id: st
         kode: row?.course?.kode ?? "",
         nama: row?.course?.nama ?? "",
         sks: Number(row?.course?.sks ?? 0),
-        nilai: row?.grade_index ?? null,
+        nilai:
+          typeof row?.grade_index === "string"
+            ? row.grade_index.trim()
+            : row?.grade_index ?? null,
         status: row?.kelulusan ?? "",
       };
     })
-    // urutkan: semester_no -> kode
     .sort((a, b) => (a.semester_no - b.semester_no) || a.kode.localeCompare(b.kode));
 
   return NextResponse.json(items, { status: 200 });
