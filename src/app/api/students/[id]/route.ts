@@ -1,8 +1,3 @@
-export const dynamic = "force-dynamic";
-
-import { NextResponse } from "next/server";
-import { createClient } from "@/utils/supabase/server";
-
 /**
  * @swagger
  * /api/students/{id}:
@@ -91,23 +86,30 @@ import { createClient } from "@/utils/supabase/server";
  *       required: [error]
  */
 
-export async function GET(
-  _req: Request,
-  ctx: { params: { id: string } }
-) {
+import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@/utils/supabase/server";
+
+export const dynamic = "force-dynamic";
+
+export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   const supabase = await createClient();
 
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+    error: userErr,
+  } = await supabase.auth.getUser();
+
+  if (userErr) return NextResponse.json({ error: userErr.message }, { status: 500 });
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { data, error } = await supabase
     .from("students")
     .select("id, nama, nim, prodi")
-    .eq("id", ctx.params.id)
+    .eq("id", params.id)
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   if (!data) return NextResponse.json({ error: "Not Found" }, { status: 404 });
 
-  return NextResponse.json(data);
+  return NextResponse.json(data, { status: 200 });
 }
