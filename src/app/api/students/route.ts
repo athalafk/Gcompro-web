@@ -1,42 +1,60 @@
+export const dynamic = "force-dynamic";
+
 /**
  * @swagger
  * /api/students:
- *   get:
- *     summary: Daftar mahasiswa
+ *   post:
+ *     summary: Daftar Mahasiswa (admin only, filter prodi + search nama/nim)
  *     description: |
- *       Mengembalikan daftar mahasiswa (id, nim, nama).
- *       - Endpoint **memerlukan sesi Supabase yang valid** (cookie/token).
- *       - Query `all=1` hanya boleh diakses oleh **role=admin** (jika tidak, 403).
- *     tags: [Students]
- *     operationId: listStudents
- *     parameters:
- *       - in: query
- *         name: all
- *         required: false
- *         description: Set ke `1` untuk meminta seluruh data (khusus admin).
- *         schema:
- *           type: string
- *           enum: ["1"]
+ *       Mengambil daftar mahasiswa berdasarkan filter `prodi` dan/atau kata kunci `search`.
+ *       - Endpoint ini **hanya dapat diakses oleh role=admin** (dicek melalui `profiles.role`).
+ *       - Query dijalankan menggunakan **service-role Supabase**.
+ *       - Field yang dapat difilter:
+ *         - `prodi`: pencarian partial pada nama program studi.
+ *         - `search`: pencarian pada nama atau NIM mahasiswa.
+ *     tags: [Admin, Students]
+ *     operationId: searchStudentsAdmin
+ *     requestBody:
+ *       required: false
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/StudentSearchRequest'
+ *           examples:
+ *             all:
+ *               summary: Get All Students
+ *               value: {}
+ *             by_prodi:
+ *               summary: Filter berdasarkan prodi
+ *               value: { prodi: "Informatika" }
+ *             by_search:
+ *               summary: Pencarian kata kunci nama/NIM
+ *               value: { search: "13519" }
+ *             combined:
+ *               summary: Gabungan filter prodi & nama
+ *               value: { prodi: "Teknik", search: "Alice" }
  *     responses:
  *       200:
- *         description: OK
+ *         description: OK (daftar mahasiswa ditemukan)
  *         content:
  *           application/json:
  *             schema:
  *               type: array
  *               items:
- *                 $ref: '#/components/schemas/StudentsListItem'
+ *                 $ref: '#/components/schemas/StudentSummary'
  *             examples:
  *               sample:
  *                 value:
  *                   - id: "9f9a4212-0761-482d-8b01-a20c35f2010d"
  *                     nim: "13519001"
- *                     nama: "Alice"
- *                   - id: "7b2f2c1e-8a3a-4b6a-9f1a-11a3c7a0d1ef"
+ *                     nama: "Alice Rahmawati"
+ *                     prodi: "Teknik Telekomunikasi"
+ *                   - id: "b11b4212-0761-482d-8b01-a20c35f2010e"
  *                     nim: "13519002"
- *                     nama: "Budi"
+ *                     nama: "Budi Santoso"
+ *                     prodi: "Teknik Informatika"
  *       401:
- *         description: Unauthorized (tidak ada sesi Supabase).
+ *         description: Unauthorized (tidak ada sesi Supabase aktif)
  *         content:
  *           application/json:
  *             schema:
@@ -45,16 +63,16 @@
  *               no_session:
  *                 value: { error: "Unauthorized" }
  *       403:
- *         description: Forbidden (bukan admin ketika meminta `all=1`).
+ *         description: Forbidden (bukan admin)
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  *             examples:
- *               not_admin:
+ *               forbidden:
  *                 value: { error: "Forbidden" }
  *       500:
- *         description: Error query Supabase / profiling.
+ *         description: Kesalahan server (gagal query Supabase)
  *         content:
  *           application/json:
  *             schema:
@@ -65,7 +83,20 @@
  *
  * components:
  *   schemas:
- *     StudentsListItem:
+ *     StudentSearchRequest:
+ *       type: object
+ *       additionalProperties: false
+ *       properties:
+ *         prodi:
+ *           type: string
+ *           description: Pencarian partial pada nama program studi (case-insensitive)
+ *           example: "Informatika"
+ *         search:
+ *           type: string
+ *           description: Kata kunci untuk mencari nama atau NIM mahasiswa (case-insensitive)
+ *           example: "13519"
+ *
+ *     StudentSummary:
  *       type: object
  *       additionalProperties: false
  *       properties:
@@ -77,6 +108,9 @@
  *           nullable: true
  *         nama:
  *           type: string
+ *         prodi:
+ *           type: string
+ *           nullable: true
  *       required: [id, nama]
  *
  *     ErrorResponse:
@@ -88,16 +122,18 @@
  *       required: [error]
  */
 
-
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/server";
+import { createAdminClient } from "@/lib/supabase";
 
-export const dynamic = "force-dynamic";
-
-export async function GET(request: Request) {
+export async function POST(req: NextRequest) {
   const supabase = await createClient();
 
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+    error: userErr,
+  } = await supabase.auth.getUser();
+  if (userErr) return NextResponse.json({ error: userErr.message }, { status: 500 });
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { data: profile, error: profErr } = await supabase
@@ -105,22 +141,38 @@ export async function GET(request: Request) {
     .select("role")
     .eq("id", user.id)
     .single();
-
   if (profErr) return NextResponse.json({ error: profErr.message }, { status: 500 });
+  if (profile?.role !== "admin") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
-  const url = new URL(request.url);
-  const wantAll = url.searchParams.get("all") === "1";
+  let body: { prodi?: string; search?: string } = {};
+  try {
+    body = (await req.json()) ?? {};
+  } catch {
+    body = {};
+  }
 
-  const query = supabase.from("students").select("id, nim, nama").order("nim");
+  const prodi = body.prodi?.trim() || "";
+  const search = body.search?.trim() || "";
 
-  if (wantAll) {
-    if (profile?.role !== "admin") {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
+  const db = await createAdminClient();
+  let query = db
+    .from("students")
+    .select("id, nim, nama, prodi")
+    .order("nim", { ascending: true });
+
+  if (prodi) {
+    query = query.ilike("prodi", `%${prodi}%`);
+  }
+
+  if (search) {
+    const pattern = `%${search}%`;
+    query = query.or(`nama.ilike.${pattern},nim.ilike.${pattern}`);
   }
 
   const { data, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  return NextResponse.json(data);
+  return NextResponse.json(data, { status: 200 });
 }
