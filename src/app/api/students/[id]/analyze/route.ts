@@ -160,28 +160,18 @@ function mapRiskToCluster(label: string): number {
   if (L.includes("sedang")) return 1;
   return 0;
 }
+type AiResponse = { prediction: string; probabilities?: Record<string, number> };
 
-type AiResponse = {
-  prediction: string;
-  probabilities?: Record<string, number>;
-};
-
-export async function POST(
-  _req: NextRequest,
-  ctx: { params: Promise<{ id: string }> }
-) {
-  const { id: studentId } = await ctx.params;
+export async function POST(_req: NextRequest, { params }: { params: { id: string } }) {
+  const studentId = params.id;
 
   try {
     const featuresForApi = await extractFeatures(studentId);
 
     const base = process.env.AI_BASE_URL;
-    if (!base) {
-      return NextResponse.json({ error: "AI_BASE_URL is not set" }, { status: 500 });
-    }
-    const aiServiceUrl = `${base}/predict/`;
+    if (!base) return NextResponse.json({ error: "AI_BASE_URL is not set" }, { status: 500 });
 
-    const res = await fetch(aiServiceUrl, {
+    const res = await fetch(`${base}/predict/`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "application/json" },
       body: JSON.stringify(featuresForApi),
@@ -190,10 +180,7 @@ export async function POST(
     if (!res.ok) {
       const bodyText = await res.text().catch(() => "");
       console.error("AI service error:", res.status, bodyText);
-      return NextResponse.json(
-        { error: `AI service error: Status ${res.status}` },
-        { status: 502 }
-      );
+      return NextResponse.json({ error: `AI service error: Status ${res.status}` }, { status: 502 });
     }
 
     const aiResult = (await res.json()) as AiResponse;
@@ -207,8 +194,7 @@ export async function POST(
       .order("semester_no", { ascending: true });
 
     const ipsList = (vsss ?? []).map((r) => Number(r.ips ?? 0));
-    const deltaIps =
-      ipsList.length >= 2 ? ipsList[ipsList.length - 1] - ipsList[ipsList.length - 2] : 0;
+    const deltaIps = ipsList.length >= 2 ? ipsList.at(-1)! - ipsList.at(-2)! : 0;
 
     const lastRow = (vsss ?? []).at(-1);
     const semesterIdForSave: string | null = (lastRow?.semester_id as any) ?? null;
@@ -248,9 +234,7 @@ export async function POST(
       .select("id, semester_id, created_at")
       .single();
 
-    if (adviceErr) {
-      console.error("advice insert error:", adviceErr);
-    }
+    if (adviceErr) console.error("advice insert error:", adviceErr);
 
     const meta = adviceRow
       ? {

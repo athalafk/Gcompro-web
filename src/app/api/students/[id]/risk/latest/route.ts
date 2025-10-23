@@ -96,7 +96,10 @@ type AiResponse = { prediction: string; probabilities?: Record<string, number> }
 function normalizeProbabilities(raw: unknown): Record<string, number> | undefined {
   if (Array.isArray(raw)) {
     const pairs = (raw as any[])
-      .filter(p => Array.isArray(p) && p.length === 2 && typeof p[0] === "string" && typeof p[1] === "number") as [string, number][];
+      .filter((p) => Array.isArray(p) && p.length === 2 && typeof p[0] === "string" && typeof p[1] === "number") as [
+      string,
+      number
+    ][];
     if (pairs.length) return Object.fromEntries(pairs);
   }
   if (raw && typeof raw === "object") {
@@ -116,11 +119,8 @@ function normalizeProbabilities(raw: unknown): Record<string, number> | undefine
   return undefined;
 }
 
-export async function GET(
-  _req: NextRequest,
-  ctx: { params: Promise<{ id: string }> }
-) {
-  const { id: studentId } = await ctx.params;
+export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+  const studentId = params.id;
   const supabase = createAdminClient();
 
   try {
@@ -133,10 +133,7 @@ export async function GET(
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
-
-    if (advErr) {
-      return NextResponse.json({ error: advErr.message }, { status: 500 });
-    }
+    if (advErr) return NextResponse.json({ error: advErr.message }, { status: 500 });
 
     let ai: AiResponse | null = null;
     let meta: { semester_id: string | null; created_at: string } | null = null;

@@ -116,29 +116,26 @@
 import { NextResponse, NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 
-export async function GET(
-  _req: NextRequest,
-  ctx: { params: Promise<{ id: string }> }
-) {
-  const { id: studentId } = await ctx.params;
+export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+  const studentId = params.id;
   const supabase = createAdminClient();
-  
+
   const [{ data: courses }, { data: edges }, { data: enr }] = await Promise.all([
     supabase.from("courses").select("id,kode,nama,sks,min_index"),
     supabase.from("course_prereq").select("course_id,prereq_course_id"),
     supabase.from("enrollments").select("course_id,grade_index,is_current").eq("student_id", studentId),
   ]);
 
-  const passed = new Set(enr?.filter(e => ["A","B","C"].includes(e.grade_index)).map(e => e.course_id));
-  const failed = new Set(enr?.filter(e => ["D","E"].includes(e.grade_index)).map(e => e.course_id));
-  const current = new Set(enr?.filter(e => e.is_current).map(e => e.course_id));
+  const passed = new Set(enr?.filter((e) => ["A", "B", "C"].includes(e.grade_index)).map((e) => e.course_id));
+  const failed = new Set(enr?.filter((e) => ["D", "E"].includes(e.grade_index)).map((e) => e.course_id));
+  const current = new Set(enr?.filter((e) => e.is_current).map((e) => e.course_id));
 
-  const nodes = (courses ?? []).map(c => ({
+  const nodes = (courses ?? []).map((c) => ({
     id: c.id,
     data: { label: `${c.nama} (${c.sks} SKS)` },
-    status: passed.has(c.id) ? "passed" : failed.has(c.id) ? "failed" : current.has(c.id) ? "current" : "none"
+    status: passed.has(c.id) ? "passed" : failed.has(c.id) ? "failed" : current.has(c.id) ? "current" : "none",
   }));
 
-  const links = (edges ?? []).map(e => ({ source: e.prereq_course_id, target: e.course_id }));
+  const links = (edges ?? []).map((e) => ({ source: e.prereq_course_id, target: e.course_id }));
   return NextResponse.json({ nodes, links });
 }
