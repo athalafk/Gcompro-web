@@ -91,7 +91,8 @@ import { createClient } from "@/utils/supabase/server";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(_req: NextRequest, context: { params: Promise<{ id: string }> }) {
+  const { id } = await context.params;
   const supabase = await createClient();
 
   const {
@@ -105,7 +106,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   const { data, error } = await supabase
     .from("students")
     .select("id, nama, nim, prodi")
-    .eq("id", params.id)
+    .eq("id", id)
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

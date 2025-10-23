@@ -162,8 +162,8 @@ function mapRiskToCluster(label: string): number {
 }
 type AiResponse = { prediction: string; probabilities?: Record<string, number> };
 
-export async function POST(_req: NextRequest, { params }: { params: { id: string } }) {
-  const studentId = params.id;
+export async function POST(_req: NextRequest, context: { params: Promise<{ id: string }> }) {
+  const { id: studentId } = await context.params;
 
   try {
     const featuresForApi = await extractFeatures(studentId);
@@ -208,12 +208,10 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
         delta_ips: deltaIps,
         mk_gagal_total: (featuresForApi as any).Jumlah_MK_Gagal,
         sks_tunda: (featuresForApi as any).Total_SKS_Gagal,
-
         pct_d: 0,
         pct_e: 0,
         repeat_count: 0,
         mk_prasyarat_gagal: 0,
-
         cluster_label: mapRiskToCluster(aiResult.prediction),
         risk_level: mapRiskForDb(aiResult.prediction),
         distance: 0,
@@ -250,3 +248,4 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
     return NextResponse.json({ error: "Internal Server Error", details: msg }, { status: 500 });
   }
 }
+

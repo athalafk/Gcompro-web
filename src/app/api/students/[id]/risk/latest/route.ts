@@ -119,8 +119,8 @@ function normalizeProbabilities(raw: unknown): Record<string, number> | undefine
   return undefined;
 }
 
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
-  const studentId = params.id;
+export async function GET(_req: NextRequest, context: { params: Promise<{ id: string }> }) {
+  const { id: studentId } = await context.params;
   const supabase = createAdminClient();
 
   try {

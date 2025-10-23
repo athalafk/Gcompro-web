@@ -151,7 +151,8 @@ type ChartResponse = {
   pie: PiePayload;
 };
 
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(_req: NextRequest, context: { params: Promise<{ id: string }> }) {
+  const { id: studentId } = await context.params;
   const supabaseUser = await createClient();
   const {
     data: { user },
@@ -171,8 +172,6 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 
   const isAdmin = profile?.role === "admin";
   const db = isAdmin ? await createAdminClient() : supabaseUser;
-
-  const studentId = params.id;
 
   // 1) IPS trend dari VIEW v_student_semester_scores
   const { data: ipsRows, error: ipsErr } = await db

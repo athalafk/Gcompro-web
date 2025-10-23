@@ -120,7 +120,8 @@ type TranscriptItem = {
   status: string;
 };
 
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(_req: NextRequest, context: { params: Promise<{ id: string }> }) {
+  const { id: studentId } = await context.params;
   // --- Auth (sesi user)
   const supabaseUser = await createClient();
   const {
@@ -143,8 +144,6 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   // Admin => service-role client (bypass RLS untuk baca lintas mahasiswa)
   const isAdmin = profile?.role === "admin";
   const db = isAdmin ? await createAdminClient() : supabaseUser;
-
-  const studentId = params.id;
 
   // --- Ambil data transkrip tanpa view
   const { data, error } = await db

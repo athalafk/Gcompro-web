@@ -130,7 +130,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/server";
 
 type ProfileStudent = {
-  id: string;
+  id: string | null;
   full_name: string | null;
   role: "student";
   nim: string;

@@ -172,7 +172,8 @@ type StatsResponse = {
   sks_tersisa: number;
 };
 
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, context: { params: Promise<{ id: string }> }) {
+  const { id: studentId } = await context.params;
   // --- Auth (pakai sesi Supabase)
   const supabaseUser = await createClient();
   const {
@@ -217,8 +218,6 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   } catch (e: any) {
     return NextResponse.json({ error: e.message || "Semester tidak valid" }, { status: 400 });
   }
-
-  const studentId = params.id;
 
   // 1) Dapatkan/buat semester_id via RPC
   const { data: semesterIdRaw, error: semErr } = await db.rpc("fn_get_or_create_semester", {

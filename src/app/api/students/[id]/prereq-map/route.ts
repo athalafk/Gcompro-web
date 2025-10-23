@@ -116,8 +116,8 @@
 import { NextResponse, NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
-  const studentId = params.id;
+export async function GET(_req: NextRequest, context: { params: Promise<{ id: string }> }) {
+  const { id: studentId } = await context.params;
   const supabase = createAdminClient();
 
   const [{ data: courses }, { data: edges }, { data: enr }] = await Promise.all([
