@@ -151,8 +151,7 @@ type ChartResponse = {
   pie: PiePayload;
 };
 
-export async function GET(_req: NextRequest, ctx: { params: { id: string } }) {
-  // --- Auth (pakai sesi user)
+export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   const supabaseUser = await createClient();
   const {
     data: { user },
@@ -162,7 +161,6 @@ export async function GET(_req: NextRequest, ctx: { params: { id: string } }) {
   if (userErr) return NextResponse.json({ error: userErr.message }, { status: 500 });
   if (!user)   return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  // --- Role
   const { data: profile, error: profErr } = await supabaseUser
     .from("profiles")
     .select("role")
@@ -172,13 +170,11 @@ export async function GET(_req: NextRequest, ctx: { params: { id: string } }) {
   if (profErr) return NextResponse.json({ error: profErr.message }, { status: 500 });
 
   const isAdmin = profile?.role === "admin";
-  const db = isAdmin ? createAdminClient() : supabaseUser;
+  const db = isAdmin ? await createAdminClient() : supabaseUser;
 
-  const studentId = ctx.params.id;
+  const studentId = params.id;
 
-  // =========================================================
-  // 1) IPS trend
-  // =========================================================
+  // 1) IPS trend dari VIEW v_student_semester_scores
   const { data: ipsRows, error: ipsErr } = await db
     .from("v_student_semester_scores")
     .select("semester_no, ips")
@@ -192,9 +188,7 @@ export async function GET(_req: NextRequest, ctx: { params: { id: string } }) {
     ips: r.ips == null ? null : Number(r.ips),
   }));
 
-  // =========================================================
-  // 2) IPK kumulatif trend
-  // =========================================================
+  // 2) IPK kumulatif trend dari VIEW v_student_cumulative
   const { data: cumRows, error: cumErr } = await db
     .from("v_student_cumulative")
     .select("semester_no, ipk_cum")
@@ -203,7 +197,6 @@ export async function GET(_req: NextRequest, ctx: { params: { id: string } }) {
 
   if (cumErr) return NextResponse.json({ error: cumErr.message }, { status: 500 });
 
-  // Sinkronkan domain semester untuk kedua series
   const allSemNos = Array.from(
     new Set([
       ...ipsTrend.map(x => x.semester_no),
@@ -225,9 +218,7 @@ export async function GET(_req: NextRequest, ctx: { params: { id: string } }) {
     ],
   };
 
-  // =========================================================
-  // 3) Pie distribusi nilai kumulatif
-  // =========================================================
+  // 3) Pie distribusi nilai kumulatif dari VIEW v_student_grade_distribution
   const { data: lastDist, error: distErr } = await db
     .from("v_student_grade_distribution")
     .select("semester_no, dist_a, dist_ab, dist_b, dist_bc, dist_c, dist_d, dist_e")
