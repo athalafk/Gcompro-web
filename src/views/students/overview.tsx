@@ -134,7 +134,7 @@ export default function StudentsOverview({ studentId }: { studentId: string }) {
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-semibold text-gray-800">Statistik Akademik</h1>
         <div className="text-right">
-          <h2 className="text-xl font-bold text-blue-800">SIPANDAI</h2>
+          <h2 className="text-xl font-extrabold text-[#02325B]">SIPANDAI</h2>
           <p className="text-xs text-gray-500">
             Sistem Informasi Pemantauan Data Akademik Integratif
           </p>

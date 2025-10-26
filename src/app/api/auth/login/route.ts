@@ -44,7 +44,7 @@
  *               not_json:
  *                 value: { error: "Body request harus berupa JSON." }
  *               missing_fields:
- *                 value: { error: "NIM dan password wajib diisi." }
+ *                 value: { error: "NIM dan Kata Sandi wajib diisi." }
  *       401:
  *         description: Kredensial salah.
  *         content:
@@ -53,7 +53,7 @@
  *               $ref: '#/components/schemas/ErrorResponse'
  *             examples:
  *               bad_creds:
- *                 value: { error: "NIM atau password salah." }
+ *                 value: { error: "NIM atau Kata Sandi salah." }
  *       500:
  *         description: Terjadi kesalahan tak terduga.
  *         content:
@@ -131,7 +131,7 @@ export async function POST(req: NextRequest) {
 
   if (!nim || !password) {
     return NextResponse.json(
-      { error: "NIM dan password wajib diisi." },
+      { error: "NIM dan kata sandi wajib diisi." },
       { status: 400 }
     );
   }
@@ -143,7 +143,7 @@ export async function POST(req: NextRequest) {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
     if (error) {
-      return NextResponse.json({ error: "NIM atau password salah." }, { status: 401 });
+      return NextResponse.json({ error: "NIM atau kata sandi salah." }, { status: 401 });
     }
 
     return NextResponse.json({

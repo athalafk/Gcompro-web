@@ -16,7 +16,7 @@ type Props = {
 
 export default function GpaLineChart({ data }: Props) {
   // Ubah kategori semester menjadi string "Smt 1", "Smt 2", dst.
-  const categories = data.categories.map(sem => `Smt ${sem}`);
+  const categories = data.categories.map(sem => `Semester ${sem}`);
 
   const options: ApexOptions = {
     chart: {
@@ -24,7 +24,16 @@ export default function GpaLineChart({ data }: Props) {
       toolbar: { show: false },
       zoom: { enabled: false },
     },
-    colors: ['#3B82F6', '#F59E0B'], // Biru (IPK) dan Oranye (IPS)
+    colors: ['#3B82F6', '#F59E0B'],
+    markers: {
+      size: 5,
+      colors: ['#FFFFFF'],
+      fillOpacity: 1,
+      strokeWidth: 3,
+      strokeColors: ['#3B82F6', '#F59E0B'],
+      strokeOpacity: 1,
+      hover: { size: 8, sizeOffset: 2 },
+    },
     stroke: {
       width: 3,
       curve: 'smooth',

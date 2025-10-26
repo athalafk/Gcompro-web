@@ -30,12 +30,12 @@ export function LogoutButton() {
   }
 
   return (
-    <div className="flex flex-col items-stretch">
+    <div className="mt-auto">
       <button
         type="button"
         onClick={handleLogout}
         disabled={pending}
-        className="inline-flex items-center gap-2 rounded-full bg-gray-900 px-4 py-1.5 text-sm font-medium text-white transition hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-60"
+        className="w-full rounded-lg bg-[#0C3A61] px-4 py-3 text-center font-medium text-white transition-colors hover:bg-blue-900 cursor-pointer"
       >
         {pending ? (
           <span className="inline-flex items-center gap-2">
@@ -44,7 +44,7 @@ export function LogoutButton() {
           </span>
         ) : (
           <>
-            <span>Logout</span>
+            <span>Keluar</span>
           </>
         )}
       </button>

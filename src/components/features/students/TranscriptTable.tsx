@@ -39,16 +39,17 @@ function renderStatusCell(params: GridRenderCellParams) {
   let textColor = 'text-gray-600';
 
   if (isLulus) {
-    bgColor = 'bg-green-100';
-    textColor = 'text-green-700';
+    bgColor = 'bg-green-200';
+    textColor = 'text-green-800';
   } else if (isTidakLulus) {
-    bgColor = 'bg-red-100';
-    textColor = 'text-red-700';
+    bgColor = 'bg-red-200';
+    textColor = 'text-red-800';
   }
 
   return (
-    <Box 
-      className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${bgColor} ${textColor}`}
+    <Box
+      className={`px-3 py-1 rounded-full text-sm font-medium ${bgColor} ${textColor}`}
+      sx={{ display: 'inline-flex', alignItems: 'center' }}
     >
       {params.value || 'N/A'}
     </Box>
@@ -60,6 +61,8 @@ const columns: GridColDef[] = [
     field: 'semester_no',
     headerName: 'Semester',
     width: 100,
+    align:'center',
+    headerAlign: 'center',
   },
   {
     field: 'kode',
@@ -80,17 +83,21 @@ const columns: GridColDef[] = [
     headerName: 'SKS',
     type: 'number',
     width: 80,
-    align: 'left',
-    headerAlign: 'left',
+    align: 'center',
+    headerAlign: 'center',
   },
   {
     field: 'nilai',
     headerName: 'Nilai',
+    align: 'center',
+    headerAlign: 'center',
     width: 90,
   },
   {
     field: 'status',
     headerName: 'Status',
+    align: 'center',
+    headerAlign: 'center',
     width: 150,
     renderCell: renderStatusCell,
   },
@@ -171,14 +178,49 @@ export default function TranscriptTable({ data }: Props) {
           columns={columns}
           getRowId={(row) => `${row.semester_no}-${row.kode}`}
           
-          pageSizeOptions={[10]}
+          pageSizeOptions={[
+            10,
+            20,
+            { value: Math.max(filteredData.length, 1), label: 'Semua' }, // "All"
+          ]}
           initialState={{
             pagination: {
               paginationModel: { pageSize: 10 },
             },
           }}
           disableRowSelectionOnClick
-          sx={{ border: 'none' }} 
+          disableColumnMenu
+          sx={{
+            border: '1px solid #e5e7eb',
+            borderRadius: '16px',
+            overflow: 'hidden',
+
+            '--DataGrid-containerBackground': '#f3f4f6',
+
+            '& .MuiDataGrid-topContainer': {
+              backgroundColor: 'var(--DataGrid-containerBackground)',
+            },
+            '& .MuiDataGrid-columnHeaders': {
+              backgroundColor: 'var(--DataGrid-containerBackground)',
+              color: '#111827',
+              fontWeight: 600,
+              borderBottom: '1px solid #e5e7eb',
+            },
+            '& .MuiDataGrid-columnHeaderTitle': {
+              fontWeight: '700',
+              color: '#111827', // opsional, biar kontras
+            },
+            '& .MuiDataGrid-columnHeader': {
+              backgroundColor: 'var(--DataGrid-containerBackground)',
+            },
+
+            '& .MuiDataGrid-row': {
+              borderBottom: '1px solid #f1f5f9',
+            },
+            '& .MuiDataGrid-cell:focus, & .MuiDataGrid-cell:focus-within': {
+              outline: 'none',
+            },
+          }}
         />
       </Box>
     </div>

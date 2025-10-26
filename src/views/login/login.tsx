@@ -49,13 +49,12 @@ export default function LoginView() {
     >
       <div className="flex w-full h-full">
         <div className="hidden md:flex w-1/2 p-10 items-center justify-center">
-          <div className="relative w-full max-w-md h-auto">
-            {" "}
+          <div className="relative w-full h-full mb-4">
             <Image
               src="/Login-pict.svg" 
               alt="Ilustrasi Login SIPANDAI"
-              width={400} 
-              height={400} 
+              width={600} 
+              height={600}
               style={{ objectFit: "contain" }} 
               priority 
             />
@@ -66,24 +65,24 @@ export default function LoginView() {
           className="w-full md:w-1/2 p-8 md:p-12 flex flex-col justify-center"
           style={{ backgroundColor: "#ffffff" }}
         >
-          <h1 className="text-2xl font-bold text-gray-800 mb-2">
-            Selamat Datang di <span className="text-blue-600">SIPANDAI</span>
+          <h1 className="text-3xl font-bold text-black mb-2">
+            Selamat Datang di <span className="text-[#02325B] font-extrabold">SIPANDAI</span>
           </h1>
-          <p className="text-sm text-gray-600 mb-8">
+          <p className="text-sm text-black font-semibold mb-12">
             Sistem Informasi Pemantauan Data Akademik Integratif
           </p>
 
           <form onSubmit={handleSubmit} className="w-full space-y-5">
-            <div className="space-y-1">
+            <div>
               <label
                 htmlFor="nim"
-                className="text-sm font-medium text-gray-700"
+                className="block text-sm font-medium text-black ml-0.5 mb-2"
               >
                 NIM
               </label>
               <input
                 id="nim"
-                className="w-full border border-gray-300 rounded-md p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                className="w-full border border-gray-300 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-[#02325B] focus:border-transparent transition"
                 type="text"
                 name="nim"
                 placeholder="Masukkan NIM Anda"
@@ -91,16 +90,16 @@ export default function LoginView() {
               />
             </div>
 
-            <div className="space-y-1">
+            <div>
               <label
                 htmlFor="password"
-                className="text-sm font-medium text-gray-700"
+                className="block text-sm font-medium text-black ml-0.5 mb-2"
               >
                 Kata Sandi
               </label>
               <input
                 id="password"
-                className="w-full border border-gray-300 rounded-md p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                className="w-full border border-gray-300 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-[#02325B] focus:border-transparent transition"
                 type="password"
                 name="password"
                 placeholder="Masukkan kata sandi"
@@ -111,7 +110,7 @@ export default function LoginView() {
             {error && <p className="text-sm text-red-600 pt-1">{error}</p>}
 
             <button
-              className="w-full rounded-md bg-blue-600 text-white py-3 font-semibold disabled:opacity-60 hover:bg-blue-700 transition duration-200 ease-in-out"
+              className="w-full rounded-md bg-[#02325B] mt-5 text-white py-3 font-semibold disabled:opacity-60 hover:bg-[#02325B] transition duration-200 ease-in-out cursor-pointer"
               type="submit"
               disabled={pending}
             >

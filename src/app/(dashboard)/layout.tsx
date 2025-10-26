@@ -100,7 +100,7 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex h-screen bg-gray-50">
       {/* Sidebar (Kolom Kiri) */}
-      <aside className="w-64 flex-shrink-0 bg-[#0A2D4F] text-white flex flex-col">
+      <aside className="w-64 flex-shrink-0 bg-[#02325B] text-white flex flex-col">
         <div className="flex-grow flex flex-col p-4">
 
           {/* Bagian Profil Pengguna */}
@@ -132,7 +132,7 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
             ) : profile?.role === "student" ? (
               <>
                 {nim && <p className="text-sm text-blue-200">{nim}</p>}
-                {prodi && <p className="text-sm text-blue-200">{prodi}</p>}
+                {prodi && <p className="text-sm text-blue-200 mt-2">{prodi}</p>}
               </>
             ) : (
               <p className="text-sm text-blue-200">Admin</p>
@@ -161,8 +161,7 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
           </nav>
 
           {/* Tombol Keluar */}
-          <div className="mt-auto">
-            {/* Form ini akan memanggil endpoint API logout */}
+          {/* <div className="mt-auto">
             <form action="/api/auth/logout" method="POST">
               <button
                 type="submit"
@@ -171,7 +170,8 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
                 Keluar
               </button>
             </form>
-          </div>
+          </div> */}
+          <LogoutButton />
 
           {/* Branding SIPANDAI */}
           <div className="text-center mt-4">

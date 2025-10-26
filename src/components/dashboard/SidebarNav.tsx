@@ -99,9 +99,9 @@ export default function SidebarNav({ studentId }: { studentId: string | null }) 
           <li key={link.href} className="mb-2">
             <Link
               href={link.href}
-              className={`flex items-center gap-3 rounded-lg px-4 py-3 transition-colors ${
+              className={`flex items-center gap-3 rounded-lg px-4 py-2 transition-colors ${
                 isActive
-                  ? "bg-white text-[#0A2D4F] font-bold"
+                  ? "bg-[#D9E0E6] text-[#0A2D4F] font-bold"
                   : "hover:bg-blue-900"
               }`}
             >

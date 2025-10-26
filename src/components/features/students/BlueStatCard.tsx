@@ -16,7 +16,7 @@ const icons: Record<string, React.ReactNode> = {
   IPK: <TrendingUp sx={iconStyle} />,
   "Target SKS": <TrackChanges sx={iconStyle} />,
   "SKS Selesai": <Check sx={iconStyle} />,
-  "SKS Tertinggal": <Layers sx={iconStyle} />,
+  "SKS Tersisa": <Layers sx={iconStyle} />,
 };
 
 type Props = {
@@ -26,16 +26,15 @@ type Props = {
 
 export default function BlueStatCard({ title, value }: Props) {
   return (
-    // Latar belakang gradien #0B3C6F -> #4A7AAE
-    <div className="bg-gradient-to-r from-[#0B3C6F] to-[#4A7AAE] text-white rounded-2xl p-5 shadow-lg">
+    <div className="bg-gradient-to-r from-[#02325B] to-[#66839C] text-white rounded-2xl p-3 shadow-lg">
       <div className="flex items-center space-x-4">
         {/* Lingkaran ikon 'bg-white' */}
-        <div className="flex-shrink-0 w-14 h-14 flex items-center justify-center bg-white rounded-full">
+        <div className="flex-shrink-0 w-10 h-10 flex items-center justify-center bg-white rounded-full">
           {icons[title] || <TrackChanges sx={iconStyle} />}
         </div>
         <div>
           <h3 className="text-base font-medium text-white">{title}</h3>
-          <p className="text-4xl font-bold text-white">{value}</p>
+          <p className="text-2xl font-bold text-white">{value}</p>
         </div>
       </div>
     </div>
