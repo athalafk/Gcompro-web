@@ -147,7 +147,7 @@ export default function StudentsOverview({ studentId }: { studentId: string }) {
         <BlueStatCard title="IPK" value={latestIpk.toFixed(2)} />
         <BlueStatCard title="Target SKS" value={total_sks} />
         <BlueStatCard title="SKS Selesai" value={sks_selesai} />
-        <BlueStatCard title="SKS Tertinggal" value={sks_tersisa} />
+        <BlueStatCard title="SKS Tersisa" value={sks_tersisa} />
       </div>
 
       {/* Grid Chart */}
