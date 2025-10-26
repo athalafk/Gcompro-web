@@ -11,11 +11,10 @@ const iconStyle: SxProps<Theme> = {
   color: "#0B3C6F",
 };
 
-// --- MODIFIKASI 3: Ganti map ikon untuk menggunakan komponen MUI ---
 const icons: Record<string, React.ReactNode> = {
   IPS: <TrendingUp sx={iconStyle} />,
   IPK: <TrendingUp sx={iconStyle} />,
-  "Total SKS": <TrackChanges sx={iconStyle} />,
+  "Target SKS": <TrackChanges sx={iconStyle} />,
   "SKS Selesai": <Check sx={iconStyle} />,
   "SKS Tertinggal": <Layers sx={iconStyle} />,
 };
@@ -35,7 +34,6 @@ export default function BlueStatCard({ title, value }: Props) {
           {icons[title] || <TrackChanges sx={iconStyle} />}
         </div>
         <div>
-          {/* Teks 'text-white' */}
           <h3 className="text-base font-medium text-white">{title}</h3>
           <p className="text-4xl font-bold text-white">{value}</p>
         </div>

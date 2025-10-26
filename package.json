@@ -13,6 +13,7 @@
     "@emotion/styled": "^11.14.1",
     "@mui/icons-material": "^7.3.4",
     "@mui/material": "^7.3.4",
+    "@mui/x-data-grid": "^8.15.0",
     "@supabase/ssr": "^0.7.0",
     "@supabase/supabase-js": "^2.75.0",
     "apexcharts": "^5.3.5",

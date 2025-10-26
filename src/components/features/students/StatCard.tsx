@@ -1,6 +1,5 @@
 // src/components/features/students/StatCard.tsx
 
-// Ikon panah naik
 const TrendUpIcon = () => (
   <svg className="w-10 h-10 text-white" fill="none" viewBox="0 0 24 24">
     <path 
