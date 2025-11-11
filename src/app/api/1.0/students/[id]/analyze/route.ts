@@ -269,7 +269,7 @@ const cachedAnalyze = unstable_cache(
 );
 
 
-export async function POST(req: NextRequest, context: { params: { id: string } }) {
+export async function POST(req: NextRequest, context: { params: Promise<{ id: string }> }) {
   const { id: studentId } = await context.params;
   if (!studentId || !isUuidLike(studentId)) {
     return NextResponse.json({ error: 'Invalid student id' }, { status: 400 });

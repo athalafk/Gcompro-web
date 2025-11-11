@@ -111,8 +111,8 @@ import { type NextRequest } from 'next/server';
 import { jsonPrivate, isUuidLike } from '@/utils/api';
 import { createSupabaseServerClient } from '@/utils/supabase/server';
 
-export async function GET(_req: NextRequest, context: { params: { id: string } }) {
-  const id = context.params.id;
+export async function GET(_req: NextRequest, context: { params: Promise<{ id: string }> }) {
+  const { id } = await context.params;
   if (!id || !isUuidLike(id)) return jsonPrivate({ error: 'Invalid student id' }, 400);
 
   const supabase = await createSupabaseServerClient();
