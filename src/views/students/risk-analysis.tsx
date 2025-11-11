@@ -1,32 +1,20 @@
-// src/views/students/risk-analysis.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import LoadingSpinner from '@/components/loading/loading-spinner';
 import RiskProgressBar from '@/components/features/risk/RiskProgressBar';
 import RecommendationCard from '@/components/features/risk/RecommendationCard';
+import { analyzeRisk, getRecommendations } from '@/services/students';
+import type { AIRawResult } from '@/models/types/students/risk';
 
 type RiskLevel = 'Aman' | 'Resiko Rendah' | 'Resiko Sedang' | 'Resiko Tinggi';
 
 type AiData = {
   prediction: RiskLevel;
-  probabilities: {
-    [key: string]: number;
-  };
+  probabilities: Record<string, number>;
   explanation: {
     opening_line: string;
     factors: string[];
-  };
-};
-
-type FeatData = { [key: string]: any };
-
-type ApiRiskResponse = {
-  feat: FeatData;
-  ai: AiData;
-  meta: {
-    semester_id: string;
-    created_at: string;
   };
 };
 
@@ -56,58 +44,110 @@ const placeholderRecommendations = [
 
 function getRiskValue(level: RiskLevel): number {
   switch (level) {
-    case 'Aman':
-      return 15; // Posisi di area Hijau
-    case 'Resiko Rendah':
-      return 40; // Posisi di area Kuning
-    case 'Resiko Sedang':
-      return 70; // Posisi di area Oranye
-    case 'Resiko Tinggi':
-      return 90; // Posisi di area Merah
-    default:
-      return 50; // Fallback
+    case 'Aman': return 15;
+    case 'Resiko Rendah': return 40;
+    case 'Resiko Sedang': return 70;
+    case 'Resiko Tinggi': return 90;
+    default: return 50;
   }
+}
+
+// Normalisasi bentuk AI response dari backend ke bentuk yang dibutuhkan UI
+function toAiData(ai: AIRawResult | null | undefined): AiData | null {
+  if (!ai) return null;
+
+  // Coba baca field yang umum; fallback aman bila key berbeda.
+  const predictionRaw =
+    (ai as any).prediction ??
+    (ai as any).label ??
+    (ai as any).class ??
+    'Resiko Sedang';
+
+  // Standarisasi teks prediksi ke union RiskLevel
+  const normalized: RiskLevel =
+    /tinggi/i.test(predictionRaw) ? 'Resiko Tinggi' :
+    /sedang/i.test(predictionRaw) ? 'Resiko Sedang' :
+    /rendah/i.test(predictionRaw) ? 'Resiko Rendah' :
+    /aman/i.test(predictionRaw) ? 'Aman' :
+    'Resiko Sedang';
+
+  const probs =
+    (ai as any).probabilities ??
+    (ai as any).probs ??
+    (ai as any).scores ??
+    {};
+
+  const opening =
+    (ai as any).explanation?.opening_line ??
+    (ai as any).explanation?.opening ??
+    (ai as any).explanation ??
+    '';
+
+  const factors =
+    (ai as any).explanation?.factors ??
+    (ai as any).factors ??
+    [];
+
+  return {
+    prediction: normalized,
+    probabilities: probs,
+    explanation: {
+      opening_line: String(opening || ''),
+      factors: Array.isArray(factors) ? factors : [],
+    },
+  };
 }
 
 export default function RiskAnalysisView({ studentId }: { studentId: string }) {
   const [riskData, setRiskData] = useState<AiData | null>(null);
-  
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [recommendations, setRecommendations] = useState<any[] | null>(null);
 
   useEffect(() => {
     if (!studentId) {
       setLoading(false);
-      setError("Student ID tidak ditemukan.");
+      setError('Student ID tidak ditemukan.');
       return;
     }
+
+    const controller = new AbortController();
 
     async function fetchData() {
       setLoading(true);
       setError(null);
+
       try {
-        const res = await fetch(`/api/students/${studentId}/analyze`, {
-          method: 'POST',
-        });
+        const [resp, recs] = await Promise.all([
+          analyzeRisk(studentId, { signal: controller.signal }),
+          getRecommendations(studentId, { signal: controller.signal }).catch(() => null),
+        ]);
 
-        if (!res.ok) {
-          throw new Error(`Gagal memuat data risiko (HTTP ${res.status})`);
-        }
-        
-        const apiData: ApiRiskResponse = await res.json();
+        if (controller.signal.aborted) return;
 
-        setRiskData(apiData.ai);
+        const ai = toAiData(resp?.ai);
+        if (!ai) throw new Error('Data AI kosong atau tidak valid.');
 
+        setRiskData(ai);
+        setRecommendations(recs ?? []);
       } catch (err: any) {
-        setError(err.message);
+        if (err?.name === 'CanceledError' || err?.message === 'canceled') return;
+        if (controller.signal.aborted) return;
+
+        setError(err?.message ?? 'Gagal memuat data risiko');
         setRiskData(null);
+        setRecommendations(null);
       } finally {
-        setLoading(false);
+        if (!controller.signal.aborted) {
+          setLoading(false);
+        }
       }
     }
 
     void fetchData();
+    return () => controller.abort();
   }, [studentId]);
+
 
   if (loading) return <LoadingSpinner message="Menganalisis Risiko..." />;
   if (error) return <main className="p-6 text-red-600">Error: {error}</main>;
@@ -118,7 +158,7 @@ export default function RiskAnalysisView({ studentId }: { studentId: string }) {
 
   return (
     <main className="p-6 space-y-6">
-      {/* Header Halaman */}
+      {/* Header */}
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-semibold text-gray-800">Analisis Risiko</h1>
         <div className="text-right">
@@ -132,56 +172,57 @@ export default function RiskAnalysisView({ studentId }: { studentId: string }) {
       {/* Kartu Klasifikasi Risiko */}
       <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
         <div className="grid grid-cols-1 md:grid-cols-5">
-          
-          {/* Kolom Kiri: Deskripsi (DENGAN OPTIONAL CHAINING) */}
           <div className="md:col-span-3 p-6">
             <h3 className="text-lg font-semibold text-gray-800 mb-2">
               Klasifikasi Risiko
             </h3>
-            
+
             <p className="text-sm text-gray-600">
-              {explanation?.opening_line || 
-               `Profil Anda menunjukkan '${prediction}'. Sistem mencatat beberapa faktor performa akademik Anda.`}
+              {explanation?.opening_line ||
+                `Profil Anda menunjukkan '${prediction}'. Sistem mencatat beberapa faktor performa akademik Anda.`}
             </p>
 
-            {explanation?.factors && (
+            {explanation?.factors?.length > 0 && (
               <ul className="list-disc list-inside text-sm text-gray-600 mt-3 space-y-1">
-                {explanation.factors.map((factor, index) => (
-                  <li key={index}>{factor}</li>
+                {explanation.factors.map((factor, idx) => (
+                  <li key={idx}>{factor}</li>
                 ))}
               </ul>
             )}
-            
+
             <p className="text-xs text-gray-400 mt-4">
               *Kategori ini dihitung dari kombinasi faktor IPK, IPS, serta jumlah SKS
               yang telah diselesaikan dan sedang ditempuh.
             </p>
           </div>
-          
-          {/* Kolom Kanan: Progress Bar*/}
+
           <div className="md:col-span-2 flex items-center justify-center p-6 border-t md:border-t-0 md:border-l border-gray-100">
-            <RiskProgressBar
-              level={prediction}
-              value={riskValue}
-            />
+            <RiskProgressBar level={prediction} value={riskValue} />
           </div>
         </div>
       </div>
 
-      {/* --- Kartu Rekomendasi (Masih Placeholder) --- */}
+      {/* Rekomendasi (placeholder) */}
       <h3 className="text-lg font-semibold text-gray-800 pt-2">
         Rekomendasi Mata Kuliah
       </h3>
       <div className="space-y-4">
-        {placeholderRecommendations.map((rec) => (
-          <RecommendationCard
-            key={rec.id}
-            title={rec.title}
-            priority={rec.priority}
-            description={rec.description}
-            prerequisites={rec.prerequisites}
-          />
-        ))}
+        {(recommendations?.length ? recommendations : placeholderRecommendations).map((rec, i) => (
+            <RecommendationCard
+              key={rec.code ?? rec.id ?? i}
+              title={rec.name ?? rec.title}
+              priority={
+                rec.priority ??
+                (rec.priority_score ?? 0) >= 0.66
+                  ? 'Tinggi'
+                  : (rec.priority_score ?? 0) >= 0.33
+                  ? 'Sedang'
+                  : 'Rendah'
+              }
+              description={rec.reason ?? rec.description}
+              prerequisites={rec.prerequisites?.map((p: any) => p.name) ?? rec.prerequisites ?? []}
+            />
+          ))}
       </div>
       <p className="text-xs text-gray-500">
         *Rekomendasi ini dihasilkan secara otomatis berdasarkan capaian SKS,

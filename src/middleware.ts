@@ -1,38 +1,52 @@
-import { type NextRequest } from 'next/server'
-import { NextResponse } from 'next/server'
-import { updateSession } from '@/utils/supabase/middleware'
+import { NextResponse, type NextRequest } from 'next/server'
+import { createServerClient } from '@supabase/ssr'
 
 const PUBLIC_FILE = /\.(.*)$/
 
-export async function middleware(request: NextRequest) {
-  const { pathname } = request.nextUrl
+export async function middleware(req: NextRequest) {
+  const { pathname, origin, search } = req.nextUrl
 
-  if (pathname.includes('.') || pathname.startsWith('/_next') || PUBLIC_FILE.test(pathname)) {
+  if (pathname.startsWith('/_next') || pathname.startsWith('/api') || PUBLIC_FILE.test(pathname)) {
     return NextResponse.next()
   }
 
-  if (
-    pathname.startsWith('/api/ai/worker') ||
-    pathname.match(/^\/api\/students\/[^/]+\/analyze$/) ||
-    pathname.match(/^\/api\/students\/[^/]+\/risk\/latest$/)
-  ) {
-    return NextResponse.next()
-  }
-
-  if (
-    pathname.startsWith('/register') ||
+  const isAuthRoute =
     pathname.startsWith('/login') ||
-    pathname.startsWith('/auth/confirmed') ||
-    pathname.startsWith('/error')
-  ) {
-    return NextResponse.next()
+    pathname.startsWith('/register') ||
+    pathname.startsWith('/auth/confirmed')
+  const isPublicRoute = isAuthRoute || pathname.startsWith('/error')
+  const isRoot = pathname === '/'
+
+  const res = NextResponse.next()
+
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll: () => req.cookies.getAll(),
+        setAll: (cookiesToSet) => {
+          cookiesToSet.forEach(({ name, value, options }) => res.cookies.set(name, value, options))
+        },
+      },
+    }
+  )
+
+  const { data: { session } } = await supabase.auth.getSession()
+
+  if (!session && !isPublicRoute) {
+    const url = new URL('/login', origin)
+    if (pathname !== '/') url.searchParams.set('redirect', `${pathname}${search || ''}`)
+    return NextResponse.redirect(url)
   }
 
-  return await updateSession(request)
+  if (session && (isAuthRoute || isRoot)) {
+    return NextResponse.redirect(new URL('/dashboard', origin))
+  }
+
+  return res
 }
 
 export const config = {
-  matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
-  ],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)'],
 }

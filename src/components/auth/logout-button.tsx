@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { logout as apiLogout } from "@/services/auth";
 
 export function LogoutButton() {
   const router = useRouter();
@@ -9,19 +10,13 @@ export function LogoutButton() {
   const [error, setError] = useState<string | null>(null);
 
   async function handleLogout() {
+    if (pending) return;
     setPending(true);
     setError(null);
 
     try {
-      const res = await fetch("/api/auth/logout", { method: "POST" });
-      const data = await res.json().catch(() => ({}));
-
-      if (!res.ok) {
-        throw new Error(data.error ?? "Logout gagal. Coba lagi.");
-      }
-
-      router.refresh();
-      router.push("/login");
+      await apiLogout().catch(() => {});
+    router.push("/login");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Logout gagal. Coba lagi.");
     } finally {
@@ -43,11 +38,10 @@ export function LogoutButton() {
             Logging out...
           </span>
         ) : (
-          <>
-            <span>Keluar</span>
-          </>
+          <span>Keluar</span>
         )}
       </button>
+
       {error && (
         <span className="mt-1 text-xs text-red-600" aria-live="polite">
           {error}
@@ -56,4 +50,3 @@ export function LogoutButton() {
     </div>
   );
 }
-

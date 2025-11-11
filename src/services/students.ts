@@ -1,7 +1,31 @@
-import { OverviewData } from "@/models/types/students/students";
-import { PrereqMap, AIRawResult } from "@/models/types/students/risk";
+import { http } from '@/lib/http';
+import { joinApi } from '@/lib/url';
 
-const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "";
+import type { OverviewData } from '@/models/types/students/students';
+import type { PrereqMap, AIRawResult } from '@/models/types/students/risk';
+
+// ====== Types ======
+export type ChartData = {
+  line: { categories: number[]; series: Array<{ name: string; data: (number | null)[] }> };
+  pie: { labels: string[]; series: number[] };
+};
+
+export type StatsData = {
+  ips: number | null;
+  ipk: number | null;
+  total_sks: number;
+  sks_selesai: number;
+  sks_tersisa: number;
+};
+
+export type TranscriptItem = {
+  semester_no: number;
+  kode: string;
+  nama: string;
+  sks: number;
+  nilai: string | null;
+  status: string;
+};
 
 export type Features = {
   IPK_Terakhir: number;
@@ -26,93 +50,162 @@ export type AnalyzeResponse = {
   meta?: RiskMeta;
 };
 
-export type LatestRiskResponse = {
-  feat: Features | null;
-  ai: AIRawResult | null;
-  meta?: RiskMeta;
+export type LatestRiskResponse =
+  | {
+      feat: Features | null;
+      ai: AIRawResult | null;
+      meta?: RiskMeta;
+    }
+  | null;
+
+export type AiRecommendationItem = {
+  rank: number;
+  code: string;
+  name: string;
+  sks: number;
+  semester_plan: number;
+  reason: string;
+  is_tertinggal: boolean;
+  priority_score: number;
+  prerequisites?: Array<{ code: string; name: string }>;
 };
 
-/**
- * Mengambil data overview mahasiswa (tren IPK/IPS, distribusi nilai)
- * @param id Student UUID
- */
-export async function getOverview(id: string): Promise<OverviewData> {
-  const res = await fetch(`${BASE_URL}/api/students/${id}/overview`, {
-    cache: "no-store",
-  });
-  if (!res.ok) {
-    const errorBody = await res.json().catch(() => ({ message: res.statusText }));
-    throw new Error(`Failed to fetch overview: ${errorBody.message}`);
-  }
-  return res.json();
+// ====== API calls ======
+
+// 1) Chart (GET)
+export async function getStudentChart(studentId: string, signal?: AbortSignal): Promise<ChartData> {
+  const res = await http.get<ChartData>(joinApi(`/students/${studentId}/statistic/chart`), { signal });
+  return res.data;
 }
 
-/**
- * Mengambil peta prasyarat untuk mahasiswa
- * @param id Student UUID
- */
-export async function getPrereqMap(id: string): Promise<PrereqMap> {
-  const res = await fetch(`${BASE_URL}/api/students/${id}/prereq-map`, {
-    cache: "no-store",
+// 2) Statistic (GET mirror — RECOMMENDED)
+export async function getStudentStats(studentId: string, semester: string, signal?: AbortSignal) {
+  const res = await http.get<StatsData>(joinApi(`/students/${studentId}/statistic`), {
+    params: { semester },
+    signal,
   });
-  if (!res.ok) {
-    const errorBody = await res.json().catch(() => ({ message: res.statusText }));
-    throw new Error(`Failed to fetch prerequisite map: ${errorBody.message}`);
-  }
-  return res.json();
+  return res.data;
 }
 
-/**
- * Menjalankan analisis risiko AI.
- */
+// (optional) Statistic via POST (fallback/legacy)
+export async function postStudentStats(studentId: string, semester: string, signal?: AbortSignal) {
+  const res = await http.post<StatsData>(joinApi(`/students/${studentId}/statistic`), { semester }, { signal });
+  return res.data;
+}
+
+// 3) Transcript (GET mirror — RECOMMENDED)
+export async function getStudentTranscript(
+  studentId: string,
+  opts: { semester_no?: number; search?: string; signal?: AbortSignal } = {}
+) {
+  const { semester_no, search, signal } = opts;
+  const res = await http.get<TranscriptItem[]>(joinApi(`/students/${studentId}/transcript`), {
+    params: {
+      ...(semester_no ? { semester_no } : {}),
+      ...(search ? { search } : {}),
+    },
+    signal,
+  });
+  return res.data;
+}
+
+// (optional) Transcript via POST (fallback/legacy)
+export async function postStudentTranscript(
+  studentId: string,
+  body?: { semester_no?: number; search?: string },
+  signal?: AbortSignal
+) {
+  const res = await http.post<TranscriptItem[]>(joinApi(`/students/${studentId}/transcript`), body ?? {}, { signal });
+  return res.data;
+}
+
+// 4) Overview (GET)
+export async function getOverview(id: string, signal?: AbortSignal) {
+  const res = await http.get<OverviewData>(joinApi(`/students/${id}/overview`), { signal });
+  return res.data;
+}
+
+// 5) Prerequisite map (GET)
+export async function getPrereqMap(id: string, signal?: AbortSignal) {
+  const res = await http.get<PrereqMap>(joinApi(`/students/${id}/prereq-map`), { signal });
+  return res.data;
+}
+
+// 6) Analyze risk (POST)
 export async function analyzeRisk(
   id: string,
-  opts?: { debug?: boolean }
-): Promise<AnalyzeResponse> {
-  const url = new URL(`${BASE_URL}/api/students/${id}/analyze`);
-  if (opts?.debug) url.searchParams.set("debug", "1");
-
-  const res = await fetch(url.toString(), {
-    method: "POST",
-    cache: "no-store",
-    headers: {
-      Accept: "application/json",
-      ...(opts?.debug ? { "x-debug": "1" } : {}),
-    },
-  });
-
-  if (!res.ok) {
-    let message = res.statusText;
-    try {
-      const body = await res.json();
-      message = body?.message || body?.error || message;
-    } catch {}
-    throw new Error(`AI analysis failed: ${message}`);
-  }
-  
-  const json = await res.json();
-  const resp: AnalyzeResponse = {
-    feat: json?.feat ?? {},
-    ai: json?.ai ?? { prediction: "" },
+  opts: { debug?: boolean; signal?: AbortSignal } = {}
+) {
+  const { debug, signal } = opts;
+  const url = joinApi(`/students/${id}/analyze`) + (debug ? '?debug=1' : '');
+  const res = await http.post<AnalyzeResponse>(
+    url,
+    {},
+    { signal, headers: { Accept: 'application/json', ...(debug ? { 'x-debug': '1' } : {}) } }
+  );
+  const json: any = res.data;
+  return {
+    feat: json?.feat ?? ({} as Features),
+    ai: json?.ai ?? ({ prediction: '' } as AIRawResult),
     meta: (json?.meta ?? null) as RiskMeta,
   };
-  return resp;
 }
 
-
-// services/students.ts
-export async function getLatestRisk(studentId: string): Promise<LatestRiskResponse | null> {
-  const res = await fetch(`/api/students/${studentId}/risk/latest`, {
-    method: "GET",
-    headers: { Accept: "application/json" },
-    cache: "no-store",
-  });
-  if (!res.ok) return null;
-
-  const json = await res.json();
+// 7) Latest risk (GET)
+export async function getLatestRisk(studentId: string, signal?: AbortSignal): Promise<LatestRiskResponse> {
+  const res = await http.get(joinApi(`/students/${studentId}/risk/latest`), { signal });
+  const json: any = res.data;
   if (json?.found === false) return { feat: null, ai: null, meta: null };
-
-  const { feat = null, ai = null, meta = null } = json as LatestRiskResponse;
-  return { feat, ai, meta };
+  const { feat = null, ai = null, meta = null } = json || {};
+  return { feat, ai, meta } as LatestRiskResponse;
 }
 
+// 8) Student detail (GET /students/[id])
+export async function getStudentDetail(id: string, signal?: AbortSignal) {
+  const res = await http.get<{ id: string; nama: string; nim: string; prodi: string }>(
+    joinApi(`/students/${id}`),
+    { signal }
+  );
+  return res.data;
+}
+
+// 9) Students list (GET — admin only, dengan pagination & sorting)
+export type StudentsListParams = {
+  search?: string;
+  prodi?: string;
+  page?: number;
+  pageSize?: number;
+  sortBy?: 'nim' | 'nama' | 'prodi';
+  sortDir?: 'asc' | 'desc';
+};
+
+export async function listStudents(params: StudentsListParams = {}, signal?: AbortSignal) {
+  const res = await http.get<{
+    items: Array<{ id: string; nim: string; nama: string; prodi: string }>;
+    page: number;
+    pageSize: number;
+    total: number;
+    sortBy: string;
+    sortDir: 'asc' | 'desc';
+    filters: { prodi: string | null; search: string | null };
+  }>(joinApi('/students'), {
+    params: {
+      ...(params.search ? { search: params.search } : {}),
+      ...(params.prodi ? { prodi: params.prodi } : {}),
+      ...(params.page ? { page: params.page } : {}),
+      ...(params.pageSize ? { pageSize: params.pageSize } : {}),
+      ...(params.sortBy ? { sortBy: params.sortBy } : {}),
+      ...(params.sortDir ? { sortDir: params.sortDir } : {}),
+    },
+    signal,
+  });
+  return res.data;
+}
+
+export async function getRecommendations(
+  id: string,
+  opts: { signal?: AbortSignal } = {}
+) {
+  const res = await http.post<AiRecommendationItem[]>(joinApi(`/students/${id}/recommend`), {}, { signal: opts.signal });
+  return res.data;
+}

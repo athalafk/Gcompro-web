@@ -1,45 +1,22 @@
-// src/views/students/overview.tsx
 'use client';
 
 import { useState, useEffect } from "react";
 import LoadingSpinner from "@/components/loading/loading-spinner";
 
-// Impor komponen
 import BlueStatCard from "@/components/features/students/BlueStatCard";
 import GpaLineChart from "@/components/charts/apex/GpaLineChart";
 import GradePieChart from "@/components/charts/apex/GradePieChart";
 import TranscriptTable from "@/components/features/students/TranscriptTable";
 
-// Tipe data dari GCompro-api.pdf (SUDAH DIPERBAIKI)
-type ChartData = {
-  line: {
-    categories: number[];
-    series: Array<{ name: string; data: (number | null)[] }>;
-  };
-  pie: {
-    labels: string[];
-    series: number[];
-  };
-};
+import {
+  getStudentChart,
+  getStudentStats,
+  getStudentTranscript,
+  type ChartData,
+  type StatsData,
+  type TranscriptItem,
+} from "@/services/students";
 
-type StatsData = {
-  ips: number | null;
-  ipk: number | null;
-  total_sks: number;
-  sks_selesai: number;
-  sks_tersisa: number;
-};
-
-type TranscriptItem = {
-  semester_no: number;
-  kode: string;
-  nama: string;
-  sks: number;
-  nilai: string | null;
-  status: string;
-};
-
-// Fungsi helper
 function getLatestValidValue(
   series: Array<{ name: string; data: (number | null)[] }>,
   name: string
@@ -47,14 +24,12 @@ function getLatestValidValue(
   const dataSeries = series.find((s) => s.name === name)?.data;
   if (!dataSeries) return 0;
   for (let i = dataSeries.length - 1; i >= 0; i--) {
-    if (dataSeries[i] !== null) {
-      return dataSeries[i] as number;
-    }
+    const v = dataSeries[i];
+    if (v != null) return Number(v) || 0;
   }
   return 0;
 }
 
-// Terima studentId sebagai prop (sesuai page.tsx)
 export default function StudentsOverview({ studentId }: { studentId: string }) {
   const [chartData, setChartData] = useState<ChartData | null>(null);
   const [statsData, setStatsData] = useState<StatsData | null>(null);
@@ -70,51 +45,42 @@ export default function StudentsOverview({ studentId }: { studentId: string }) {
       return;
     }
 
+    const controller = new AbortController();
+
     async function fetchData() {
       setLoading(true);
       setError(null);
+
       try {
-        const [chartRes, statsRes, transcriptRes] = await Promise.all([
-          // 1. Ambil data chart (untuk IPK/IPS, Line, Pie)
-          fetch(`/api/students/${studentId}/statistic/chart`),
-
-          // 2. Ambil data SKS
-          // API ini butuh body 'semester'. Kita beri semester dummy
-          // untuk mendapatkan data SKS kumulatif.
-          fetch(`/api/students/${studentId}/statistic`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ semester: "Ganjil 2023/2024" }),
-          }),
-
-          // 3. Ambil data transkrip
-          fetch(`/api/students/${studentId}/transcript`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({}),
-          }),
+        const [chart, stats, transcript] = await Promise.all([
+          getStudentChart(studentId, controller.signal),
+          getStudentStats(studentId, "Ganjil 2023/2024", controller.signal),
+          getStudentTranscript(studentId, { signal: controller.signal }),
         ]);
 
-        if (!chartRes.ok) throw new Error(`Gagal memuat data chart: ${chartRes.statusText}`);
-        if (!statsRes.ok) throw new Error(`Gagal memuat data SKS: ${statsRes.statusText}`);
-        if (!transcriptRes.ok) throw new Error(`Gagal memuat transkrip: ${transcriptRes.statusText}`);
-
-        const chart: ChartData = await chartRes.json();
-        const stats: StatsData = await statsRes.json();
-        const transcript: TranscriptItem[] = await transcriptRes.json();
+        if (controller.signal.aborted) return;
 
         setChartData(chart);
         setStatsData(stats);
         setTranscriptData(transcript);
       } catch (err: any) {
-        setError(err.message);
+        if (err?.name === "CanceledError" || err?.message === "canceled") return;
+        if (controller.signal.aborted) return;
+
+        setError(err?.message ?? "Gagal memuat data");
+        setChartData(null);
+        setStatsData(null);
+        setTranscriptData(null);
       } finally {
-        setLoading(false);
+        if (!controller.signal.aborted) {
+          setLoading(false);
+        }
       }
     }
 
     void fetchData();
-  }, [studentId]); // Jalankan ulang jika studentId berubah
+    return () => controller.abort();
+  }, [studentId]);
 
   if (loading) return <LoadingSpinner message="Memuat Statistik Akademik..." />;
   if (error) return <main className="p-6 text-red-600">Error: {error}</main>;
@@ -122,15 +88,12 @@ export default function StudentsOverview({ studentId }: { studentId: string }) {
     return <main className="p-6">Data statistik tidak ditemukan.</main>;
   }
 
-  // Ekstrak data untuk 5 kartu
   const latestIps = getLatestValidValue(chartData.line.series, "IPS");
   const latestIpk = getLatestValidValue(chartData.line.series, "IPK");
   const { total_sks, sks_selesai, sks_tersisa } = statsData;
 
-  // --- JSX SESUAI MOCKUP ---
   return (
     <main className="p-6 space-y-6">
-      {/* Header Halaman */}
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-semibold text-gray-800">Statistik Akademik</h1>
         <div className="text-right">
@@ -141,7 +104,6 @@ export default function StudentsOverview({ studentId }: { studentId: string }) {
         </div>
       </div>
 
-      {/* 5 Kartu Statistik Biru */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
         <BlueStatCard title="IPS" value={latestIps.toFixed(2)} />
         <BlueStatCard title="IPK" value={latestIpk.toFixed(2)} />
@@ -150,19 +112,15 @@ export default function StudentsOverview({ studentId }: { studentId: string }) {
         <BlueStatCard title="SKS Tersisa" value={sks_tersisa} />
       </div>
 
-      {/* Grid Chart */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2">
-          {/* Blok Chart Perkembangan IPK */}
           <GpaLineChart data={chartData.line} />
         </div>
         <div>
-          {/* Blok Chart Distribusi Nilai */}
           <GradePieChart data={chartData.pie} />
         </div>
       </div>
 
-      {/* Blok Transkrip Nilai */}
       <div className="col-span-1 lg:col-span-3">
         <TranscriptTable data={transcriptData} />
       </div>

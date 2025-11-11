@@ -1,17 +1,57 @@
-import type { MyProfile } from "@/models/types/auth/auth";
+import { http } from '@/lib/http';
+import { joinApi } from '@/lib/url';
+import type { MyProfile } from '@/models/types/auth/auth';
 
-const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "";
+import { createSupabaseBrowserClient } from '@/utils/supabase/browser';
 
-export async function getMyProfile(): Promise<MyProfile | null> {
-  const res = await fetch(`${BASE_URL}/api/profile`, {
-    cache: "no-store",
-    headers: { accept: "application/json" },
-  });
+let _sb: ReturnType<typeof createSupabaseBrowserClient> | null = null;
 
-  if (res.status === 401) return null;
-  if (!res.ok) {
+export function getSb() {
+  if (typeof window === 'undefined') return null;
+  if (_sb) return _sb;
+  _sb = createSupabaseBrowserClient();
+  return _sb;
+}
+
+// --- Login user (NIM + password) ---
+export async function loginWithNim(nim: string, password: string) {
+  try {
+    const res = await http.post(joinApi('/auth/login'), { nim, password });
+    return res.data as { user?: MyProfile; error?: string; message?: string };
+  } catch (err: any) {
+    const apiErr = err?.response?.data?.error || err?.message || 'Login failed';
+    return { error: String(apiErr) } as { error: string };
+  }
+}
+
+// --- Get current profile (GET) ---
+export async function getMyProfile(signal?: AbortSignal): Promise<MyProfile | null> {
+  try {
+    const res = await http.get<MyProfile>(joinApi('/profile'), { signal });
+    return res.data ?? null;
+  } catch (err: any) {
+    const status = err?.response?.status;
+    if (status === 401 || status === 404) return null;
+    console.warn('getMyProfile error:', err?.message ?? err);
     return null;
   }
-  const json = (await res.json()) as MyProfile;
-  return json;
+}
+
+// --- Logout user ---
+export async function logout(signal?: AbortSignal): Promise<void> {
+  try {
+    await http.post(joinApi('/auth/logout'), {}, { signal });
+  } catch (err: any) {
+    const status = err?.response?.status;
+    if (status && status !== 401) {
+      console.warn('logout API error:', err?.message ?? err);
+    }
+  } finally {
+    const sb = await getSb();
+    try {
+      await sb?.auth.signOut();
+    } catch (err: any) {
+      console.warn('logout Supabase error:', err?.message ?? err);
+    }
+  }
 }

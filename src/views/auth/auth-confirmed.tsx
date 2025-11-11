@@ -1,50 +1,56 @@
-'use client'
+'use client';
 
-import { useState } from 'react';
-import { createClient } from '@/utils/supabase/client'; 
-import { useSearchParams } from 'next/navigation';
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
+import { createSupabaseBrowserClient } from '@/utils/supabase/browser';
 
 export default function AuthConfirmedView() {
   const searchParams = useSearchParams();
   const status = searchParams.get('status');
-  const message = searchParams.get('message'); 
+  const message = searchParams.get('message') ?? '';
 
-  const [email, setEmail] = useState(''); 
+  const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState('');
   const [apiError, setApiError] = useState('');
 
-  const supabase = createClient(); 
+  const supabase = useMemo(() => createSupabaseBrowserClient(), []);
 
   const handleResendLink = async () => {
     setLoading(true);
     setApiError('');
     setSuccess('');
 
-    if (!email) {
-        setApiError('Silakan masukkan email Anda untuk mengirim ulang.');
-        setLoading(false);
-        return;
+    const e = email.trim();
+    if (!e) {
+      setApiError('Silakan masukkan email Anda untuk mengirim ulang.');
+      setLoading(false);
+      return;
     }
 
-    const { error } = await supabase.auth.signInWithOtp({
-      email: email,
-      options: {
-        emailRedirectTo: `${window.location.origin}/api/auth/callback`, 
-      },
-    });
+    try {
+      const emailRedirectTo =
+        (typeof window !== 'undefined' ? window.location.origin : '') + '/api/auth/callback';
 
-    setLoading(false);
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email: e,
+        options: { emailRedirectTo },
+      });
 
-    if (error) {
-      setApiError(`Gagal mengirim ulang: ${error.message}`);
-    } else {
-      setSuccess('✅ Link verifikasi baru telah dikirim! Silakan cek email Anda.');
-      setEmail(''); 
+      if (error) {
+        setApiError(`Gagal mengirim ulang: ${error.message}`);
+      } else {
+        setSuccess('✅ Link verifikasi baru telah dikirim! Silakan cek email Anda.');
+        setEmail('');
+      }
+    } catch (err: any) {
+      setApiError(`Terjadi kesalahan: ${err?.message ?? 'unknown error'}`);
+    } finally {
+      setLoading(false);
     }
   };
-
 
   return (
     <div className="flex min-h-screen items-center justify-center p-4">
@@ -54,9 +60,9 @@ export default function AuthConfirmedView() {
           <p className="text-red-600 mb-6 text-center">
             {message || 'Link verifikasi ini mungkin sudah kedaluwarsa atau invalid.'}
           </p>
-          
+
           <p className="text-gray-700 mb-2">Masukkan email Anda untuk mengirim ulang link:</p>
-          
+
           <input
             type="email"
             placeholder="Email Anda"
@@ -65,10 +71,10 @@ export default function AuthConfirmedView() {
             className="p-2 border rounded w-full mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500"
             required
           />
-          
+
           <button
             onClick={handleResendLink}
-            disabled={loading || !email}
+            disabled={loading || !email.trim()}
             className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded transition duration-150 disabled:bg-gray-400 disabled:cursor-not-allowed"
           >
             {loading ? 'Mengirim...' : 'Kirim Ulang Link Verifikasi'}
@@ -78,19 +84,18 @@ export default function AuthConfirmedView() {
           {success && <p className="text-sm text-green-600 mt-2">{success}</p>}
         </div>
       ) : (
-        <div className="text-center p-8 bg-white rounded-lg shadow-lg max-w-sm border-2 border-black"> 
-            <h1 className="text-3xl font-bold text-green-600">Verifikasi Berhasil! 🎉</h1>
-            <p className="text-gray-700 mt-4">
-                Akun Anda telah dikonfirmasi. Anda dapat melanjutkan ke{' '}
-                
-                <Link 
-                    href="/" 
-                    className="text-blue-600 hover:text-blue-800 font-semibold underline transition duration-150"
-                >
-                    aplikasi
-                </Link>
-                .
-            </p>
+        <div className="text-center p-8 bg-white rounded-lg shadow-lg max-w-sm border-2 border-black">
+          <h1 className="text-3xl font-bold text-green-600">Verifikasi Berhasil! 🎉</h1>
+          <p className="text-gray-700 mt-4">
+            Akun Anda telah dikonfirmasi. Anda dapat melanjutkan ke{' '}
+            <Link
+              href="/"
+              className="text-blue-600 hover:text-blue-800 font-semibold underline transition duration-150"
+            >
+              aplikasi
+            </Link>
+            .
+          </p>
         </div>
       )}
     </div>

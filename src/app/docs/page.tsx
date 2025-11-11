@@ -1,35 +1,32 @@
-export const dynamic = "force-dynamic";
+export const dynamic = 'force-dynamic';
 
-import { getApiDocs } from "@/lib/swagger";
-import { createClient } from "@/utils/supabase/server";
-import ReactSwaggerView from "@/views/docs/react-swagger";
-import { redirect } from "next/navigation";
+import { redirect } from 'next/navigation';
+import { getApiDocs } from '@/lib/swagger';
+import { createSupabaseServerClient } from '@/utils/supabase/server';
+import ReactSwaggerView from '@/views/docs/react-swagger';
 
 export default async function DocsPage() {
-  const supabase = createClient();
+  const supabase = await createSupabaseServerClient();
 
-  const {
-    data: { user },
-  } = await (await supabase).auth.getUser();
-
+  const { data: { user }, error: userErr } = await supabase.auth.getUser();
+  if (userErr) {
+    redirect('/error?code=500');
+  }
   if (!user) {
-    redirect("/login");
+    redirect('/login');
   }
 
-    let role: string | null = null;
+  const { data: profile, error: profErr } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single();
 
-  if (user) {
-    const { data: profile } = await (await supabase)
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .single();
-
-    role = profile?.role ?? null;
+  if (profErr) {
+    redirect('/error?code=500');
   }
-
-  if (role !== "admin") {
-    redirect("/error?code=403");
+  if ((profile?.role ?? null) !== 'admin') {
+    redirect('/error?code=403');
   }
 
   const spec = await getApiDocs();
