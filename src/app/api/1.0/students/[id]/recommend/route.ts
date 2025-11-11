@@ -258,7 +258,7 @@ function cachedRecommend(studentId: string) {
 
 // ---------- 3) Handler: auth & guard DI LUAR cache ----------
 export async function POST(req: NextRequest, context: { params: { id: string } }) {
-  const studentId = context.params.id;
+  const { id: studentId } = await context.params;
   if (!studentId || !isUuidLike(studentId)) {
     return NextResponse.json({ error: 'Invalid student id' }, { status: 400 });
   }

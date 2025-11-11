@@ -165,7 +165,7 @@ type PiePayload = { labels: string[]; series: number[] };
 type ChartResponse = { line: LinePayload; pie: PiePayload };
 
 export async function GET(_req: NextRequest, context: { params: { id: string } }) {
-  const studentId = context.params.id;
+  const { id: studentId } = await context.params;
   if (!studentId || !isUuidLike(studentId)) return jsonPrivate({ error: 'Invalid student id' }, 400);
 
   try {

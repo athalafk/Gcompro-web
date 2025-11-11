@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import LoadingSpinner from '@/components/loading/loading-spinner';
 import RiskProgressBar from '@/components/features/risk/RiskProgressBar';
 import RecommendationCard from '@/components/features/risk/RecommendationCard';
-import { analyzeRisk, getRecommendations } from '@/services/students';
+import { analyzeRisk, getLatestRisk, getRecommendations } from '@/services/students';
 import type { AIRawResult } from '@/models/types/students/risk';
 
 type RiskLevel = 'Aman' | 'Resiko Rendah' | 'Resiko Sedang' | 'Resiko Tinggi';
@@ -119,7 +119,7 @@ export default function RiskAnalysisView({ studentId }: { studentId: string }) {
 
       try {
         const [resp, recs] = await Promise.all([
-          analyzeRisk(studentId, { signal: controller.signal }),
+          getLatestRisk(studentId, controller.signal ),
           getRecommendations(studentId, { signal: controller.signal }).catch(() => null),
         ]);
 

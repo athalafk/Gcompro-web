@@ -288,7 +288,7 @@ async function ensureAuthAndOwnership(req: NextRequest, studentId: string) {
 
 // POST (compat)
 export async function POST(req: NextRequest, context: { params: { id: string } }) {
-  const studentId = context.params.id;
+  const { id: studentId } = await context.params;
   if (!studentId || !isUuidLike(studentId)) return jsonNoStore({ error: 'Invalid student id' }, 400);
 
   const auth = await ensureAuthAndOwnership(req, studentId);
@@ -311,7 +311,7 @@ export async function POST(req: NextRequest, context: { params: { id: string } }
 
 // GET mirror (cachable privat)
 export async function GET(req: NextRequest, context: { params: { id: string } }) {
-  const studentId = context.params.id;
+  const { id: studentId } = await context.params;
   if (!studentId || !isUuidLike(studentId)) return jsonPrivate({ error: 'Invalid student id' }, 400);
 
   const { searchParams } = new URL(req.url);
