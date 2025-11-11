@@ -4,6 +4,8 @@ import { FormEvent, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { loginWithNim } from "@/services/auth";
+import Visibility from "@mui/icons-material/Visibility";
+import VisibilityOff from "@mui/icons-material/VisibilityOff";
 
 function sanitizeRedirect(r: string | null): string {
   if (!r) return "/dashboard";
@@ -99,7 +101,10 @@ export default function LoginView() {
             </div>
 
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-black ml-0.5 mb-2">
+              <label
+                htmlFor="password"
+                className="block text-sm font-medium text-black ml-0.5 mb-2"
+              >
                 Kata Sandi
               </label>
               <div className="relative">
@@ -115,10 +120,10 @@ export default function LoginView() {
                 <button
                   type="button"
                   onClick={() => setShowPwd((s) => !s)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-600 hover:text-gray-800"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-800"
                   aria-label={showPwd ? "Sembunyikan kata sandi" : "Tampilkan kata sandi"}
                 >
-                  {showPwd ? "Sembunyikan" : "Tampilkan"}
+                  {showPwd ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
                 </button>
               </div>
             </div>
