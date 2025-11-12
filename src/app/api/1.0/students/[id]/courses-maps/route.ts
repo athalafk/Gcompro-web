@@ -1,11 +1,11 @@
 /**
  * @swagger
- * /students/{id}/courses-map:
+ * /students/{id}/courses-maps:
  *   get:
  *     summary: Peta mata kuliah (course map) per mahasiswa
  *     description: |
- *       Mengembalikan peta mata kuliah berisi **nodes** (mata kuliah & placeholder pilihan),
- *       di mana setiap node menyimpan langsung **prereq** dan **corereq** (bukan lagi via edges).
+ *       Mengembalikan peta mata kuliah berisi **nodes** (mata kuliah & placeholder pilihan)
+ *       dan **edges** (prasyarat & corequisit) untuk seorang mahasiswa.
  *
  *       **Aturan Kelulusan per Node:**
  *       - `"Lulus"` → `enrollments.kelulusan = 'Lulus'` (atau lulus berdasar perbandingan `grade_index` vs `min_index`)
@@ -20,9 +20,9 @@
  *       - Jika belum ada MK pilihan yang diambil untuk slot tersebut, placeholder tetap
  *         bernama "Mata Kuliah Pilihan #n" dan berstatus `"Belum Lulus"`.
  *
- *       **Arah Relasi (hanya sebagai konsep, tidak dikembalikan lagi sebagai edges):**
- *       - `prereq`: daftar MK yang harus diambil/lulus **sebelum** MK target.
- *       - `corereq`: daftar MK yang **dapat/harus** diambil **bersamaan** dengan MK target.
+ *       **Arah Edges:**
+ *       - `from` = kode MK prasyarat/coreq
+ *       - `to`   = kode MK target
  *
  *       Endpoint **memerlukan sesi Supabase yang valid**.
  *       Jika user **admin**, dapat mengakses data lintas mahasiswa (bypass RLS).
@@ -90,7 +90,7 @@
  *     CoursesMapResponse:
  *       type: object
  *       additionalProperties: false
- *       required: [curriculum_id, version, meta, nodes]
+ *       required: [curriculum_id, version, meta, nodes, edges]
  *       properties:
  *         curriculum_id:
  *           type: string
@@ -112,23 +112,15 @@
  *           type: array
  *           items:
  *             $ref: '#/components/schemas/CourseNode'
- *
- *     RequisiteItem:
- *       type: object
- *       additionalProperties: false
- *       required: [code, name]
- *       properties:
- *         code:
- *           type: string
- *           example: "AZK1AAB3"
- *         name:
- *           type: string
- *           example: "Kalkulus 1"
+ *         edges:
+ *           type: array
+ *           items:
+ *             $ref: '#/components/schemas/CourseEdge'
  *
  *     CourseNode:
  *       type: object
  *       additionalProperties: false
- *       required: [code, name, sks, semester_plan, prereq, corereq, kelulusan]
+ *       required: [code, name, sks, semester_plan, corereq, kelulusan]
  *       properties:
  *         code:
  *           type: string
@@ -146,16 +138,12 @@
  *           nullable: true
  *           description: Semester rencana kurikulum (bisa null)
  *           example: 1
- *         prereq:
- *           type: array
- *           description: Daftar prasyarat (masing-masing berisi {code, name})
- *           items:
- *             $ref: '#/components/schemas/RequisiteItem'
  *         corereq:
  *           type: array
- *           description: Daftar corequisit (masing-masing berisi {code, name})
  *           items:
- *             $ref: '#/components/schemas/RequisiteItem'
+ *             type: string
+ *           description: Daftar kode mata kuliah corequisit (hanya untuk node reguler)
+ *           example: []
  *         kelulusan:
  *           type: string
  *           description: Status kelulusan node untuk mahasiswa ini
@@ -180,6 +168,23 @@
  *               enum: ["Wajib", "Pilihan"]
  *               example: "Wajib"
  *
+ *     CourseEdge:
+ *       type: object
+ *       additionalProperties: false
+ *       required: [from, to, type]
+ *       properties:
+ *         from:
+ *           type: string
+ *           description: Kode mata kuliah prasyarat/coreq
+ *           example: "AZK1AAB3"
+ *         to:
+ *           type: string
+ *           description: Kode mata kuliah target
+ *           example: "AZK1FAB3"
+ *         type:
+ *           type: string
+ *           enum: ["prereq", "coreq"]
+ *
  *     ErrorResponse:
  *       type: object
  *       additionalProperties: false
@@ -198,26 +203,26 @@ import { createAdminClient } from "@/lib/supabase";
 
 type Kelulusan = "Lulus" | "Tidak Lulus" | "Belum Lulus";
 
-type RequisiteItem = { code: string; name: string };
-
 type CourseNode = {
   code: string;
   name: string;
   sks: number;
   semester_plan: number | null;
-  prereq: RequisiteItem[];
-  corereq: RequisiteItem[];
+  corereq: string[];
   kelulusan: Kelulusan;
   mk_pilihan?: boolean;
   min_index?: "A" | "AB" | "B" | "BC" | "C" | "D" | "E";
   attributes?: { kategori: "Wajib" | "Pilihan" };
 };
 
+type Edge = { from: string; to: string; type: "prereq" | "coreq" };
+
 type CoursesMapResponse = {
   curriculum_id: string;
   version: number;
   meta: { name: string; note?: string };
   nodes: CourseNode[];
+  edges: Edge[];
 };
 
 const GRADE_RANK: Record<string, number> = {
@@ -251,10 +256,10 @@ function passedByGrade(
 }
 
 export async function GET(
-  _req: NextRequest,
-  context: { params: { id: string } }
+  req: NextRequest,
+  context: { params: Promise<{ id: string }> }
 ) {
-  const studentId = context.params.id;
+  const { id: studentId } = await context.params;
   if (!studentId || !isUuidLike(studentId))
     return jsonPrivate({ error: "Invalid student id" }, 400);
 
@@ -297,24 +302,16 @@ export async function GET(
       .order("kode", { ascending: true });
     if (cErr) return jsonPrivate({ error: cErr.message }, 500);
 
-    // peta id<->course + trim min_index dari CHAR(2)
-    type CourseRow = {
-      id: string;
-      kode: string;
-      nama: string;
-      sks: number;
-      mk_pilihan: boolean;
-      min_index: string | null;
-      semester_no: number | null;
-    };
-
-    const idToCourse = new Map<string, CourseRow>();
-    const codeToCourse = new Map<string, CourseRow>(); // uppercased code
-    for (const c of (courses ?? []) as CourseRow[]) {
+    // peta id<->kode + trim min_index dari CHAR(2)
+    const idToCourse = new Map<string, any>();
+    const idToCode = new Map<string, string>();
+    const codeToId = new Map<string, string>();
+    for (const c of courses ?? []) {
+      idToCourse.set(c.id, c);
+      idToCode.set(c.id, c.kode);
+      codeToId.set(String(c.kode).toUpperCase(), c.id);
       if (typeof c.min_index === "string")
         c.min_index = c.min_index.trim() as any;
-      idToCourse.set(c.id, c);
-      codeToCourse.set(String(c.kode).toUpperCase(), c);
     }
 
     // enrollments
@@ -344,7 +341,7 @@ export async function GET(
       }
     }
 
-    // ambil relasi prereq & coreq
+    // edges (prereq & coreq)
     const { data: prereqRaw, error: prErr } = await db
       .from("course_prereq")
       .select("course_id, prereq_course_id");
@@ -355,39 +352,33 @@ export async function GET(
       .select("course_id, coreq_course_id");
     const coreqRaw = coreqRes.error ? [] : coreqRes.data ?? [];
 
-    // build map: KODE TARGET (upper) -> RequisiteItem[]
-    const prereqMap = new Map<string, RequisiteItem[]>();
-    for (const r of prereqRaw ?? []) {
-      const target = idToCourse.get(r.course_id!);
-      const pre = idToCourse.get(r.prereq_course_id!);
-      if (!target || !pre) continue;
-      // hanya tampilkan prasyarat reguler (bukan mk_pilihan)
-      if (pre.mk_pilihan) continue;
+    const prereqEdges: Edge[] = (prereqRaw ?? [])
+      .map((r) => {
+        const to = idToCode.get(r.course_id!);
+        const from = idToCode.get(r.prereq_course_id!);
+        if (!to || !from) return null;
+        return { from, to, type: "prereq" as const };
+      })
+      .filter(Boolean) as Edge[];
 
-      const key = String(target.kode).toUpperCase();
-      const list = prereqMap.get(key) ?? [];
-      list.push({ code: pre.kode, name: pre.nama });
-      prereqMap.set(key, list);
+    const coreqEdges: Edge[] = (coreqRaw ?? [])
+      .map((r: any) => {
+        const to = idToCode.get(r.course_id!);
+        const from = idToCode.get(r.coreq_course_id!);
+        if (!to || !from) return null;
+        return { from, to, type: "coreq" as const };
+      })
+      .filter(Boolean) as Edge[];
+
+    // coreq map: kode course -> array kode coreq
+    const coreqMap = new Map<string, string[]>();
+    for (const e of coreqEdges) {
+      const arr = coreqMap.get(e.to) ?? [];
+      arr.push(e.from);
+      coreqMap.set(e.to, arr);
     }
 
-    const coreqMap = new Map<string, RequisiteItem[]>();
-    for (const r of coreqRaw as Array<{
-      course_id: string;
-      coreq_course_id: string;
-    }>) {
-      const target = idToCourse.get(r.course_id!);
-      const co = idToCourse.get(r.coreq_course_id!);
-      if (!target || !co) continue;
-      // hanya tampilkan coreq reguler (bukan mk_pilihan)
-      if (co.mk_pilihan) continue;
-
-      const key = String(target.kode).toUpperCase();
-      const list = coreqMap.get(key) ?? [];
-      list.push({ code: co.kode, name: co.nama });
-      coreqMap.set(key, list);
-    }
-
-    // nodes reguler
+    // nodes reguler (Wajib)
     const regularNodes: CourseNode[] = (courses ?? [])
       .filter((c) => !c.mk_pilihan)
       .map((c) => {
@@ -401,21 +392,20 @@ export async function GET(
           if (passedByGrade(best, minI)) status = "Lulus";
         }
 
-        const key = String(c.kode).toUpperCase();
-        const prereq = (prereqMap.get(key) ?? [])
-          .slice()
-          .sort((a, b) => a.name.localeCompare(b.name));
-        const corereq = (coreqMap.get(key) ?? [])
-          .slice()
-          .sort((a, b) => a.name.localeCompare(b.name));
+        const rawCoreq = coreqMap.get(c.kode) ?? [];
+        const filteredCoreq = rawCoreq.filter((k) => {
+          const id = codeToId.get(String(k).toUpperCase());
+          if (!id) return false;
+          const course = (courses ?? []).find((x) => x.id === id);
+          return course ? !course.mk_pilihan : false;
+        });
 
         return {
           code: c.kode,
           name: c.nama,
           sks: Number(c.sks),
           semester_plan: c.semester_no ?? null,
-          prereq,
-          corereq,
+          corereq: filteredCoreq,
           kelulusan: status,
           mk_pilihan: false,
           min_index: minI,
@@ -488,7 +478,6 @@ export async function GET(
           name,
           sks,
           semester_plan: semester,
-          prereq: [],
           corereq: [],
           kelulusan: status,
           mk_pilihan: true,
@@ -496,6 +485,12 @@ export async function GET(
         });
       }
     }
+
+    // edges hanya untuk node reguler
+    const regularCodes = new Set<string>(regularNodes.map((n) => n.code));
+    const edges: Edge[] = [...prereqEdges, ...coreqEdges].filter(
+      (e) => regularCodes.has(e.from) && regularCodes.has(e.to)
+    );
 
     const payload: CoursesMapResponse = {
       curriculum_id: "KUR-FTE",
@@ -505,6 +500,7 @@ export async function GET(
         note: "Kelulusan 3-status + MK Pilihan fixed layout (rename jika diambil)",
       },
       nodes: [...regularNodes, ...electiveNodes],
+      edges,
     };
 
     return jsonPrivate(payload, 200);
