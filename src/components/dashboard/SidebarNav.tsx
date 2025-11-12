@@ -75,7 +75,7 @@ export default function SidebarNav({ studentId }: { studentId: string | null }) 
     },
     {
       // Ini adalah halaman Analisis Risiko dari mockup Anda
-      href: `/students/${studentId}/risk`,
+      href: `/risk`,
       text: "Analisis Risiko",
       icon: <RisikoIcon />,
     },
