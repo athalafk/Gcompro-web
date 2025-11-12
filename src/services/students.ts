@@ -162,7 +162,7 @@ export async function getLatestRisk(studentId: string, signal?: AbortSignal): Pr
 
 // 8) Student detail (GET /students/[id])
 export async function getStudentDetail(id: string, signal?: AbortSignal) {
-  const res = await http.get<{ id: string; nama: string; nim: string; prodi: string }>(
+  const res = await http.get<{ id: string; nama: string; nim: string; prodi: string; angkatan: number }>(
     joinApi(`/students/${id}`),
     { signal }
   );
@@ -173,25 +173,27 @@ export async function getStudentDetail(id: string, signal?: AbortSignal) {
 export type StudentsListParams = {
   search?: string;
   prodi?: string;
+  angkatan?: number; // <-- DITAMBAHKAN
   page?: number;
   pageSize?: number;
-  sortBy?: 'nim' | 'nama' | 'prodi';
+  sortBy?: 'nim' | 'nama' | 'prodi' | 'angkatan'; // <-- DITAMBAHKAN
   sortDir?: 'asc' | 'desc';
 };
 
 export async function listStudents(params: StudentsListParams = {}, signal?: AbortSignal) {
   const res = await http.get<{
-    items: Array<{ id: string; nim: string; nama: string; prodi: string }>;
+    items: Array<{ id: string; nim: string; nama: string; prodi: string; angkatan: number }>; // <-- DITAMBAHKAN
     page: number;
     pageSize: number;
     total: number;
     sortBy: string;
     sortDir: 'asc' | 'desc';
-    filters: { prodi: string | null; search: string | null };
+    filters: { prodi: string | null; search: string | null; angkatan: number | null }; // <-- DITAMBAHKAN
   }>(joinApi('/students'), {
     params: {
       ...(params.search ? { search: params.search } : {}),
       ...(params.prodi ? { prodi: params.prodi } : {}),
+      ...(params.angkatan ? { angkatan: params.angkatan } : {}), // <-- DITAMBAHKAN
       ...(params.page ? { page: params.page } : {}),
       ...(params.pageSize ? { pageSize: params.pageSize } : {}),
       ...(params.sortBy ? { sortBy: params.sortBy } : {}),
