@@ -60,7 +60,11 @@ const PetaIcon = () => (
   </svg>
 );
 
-export default function SidebarNav({ studentId }: { studentId: string | null }) {
+export default function SidebarNav({
+  studentId,
+}: {
+  studentId: string | null;
+}) {
   const pathname = usePathname();
 
   // Jika studentId tidak ada, jangan render link
@@ -79,11 +83,11 @@ export default function SidebarNav({ studentId }: { studentId: string | null }) 
       text: "Analisis Risiko",
       icon: <RisikoIcon />,
     },
-    // { 
-    //   href: `/students/${studentId}/map`, 
-    //   text: "Peta Mata Kuliah", 
-    //   icon: <PetaIcon /> 
-    // },
+    {
+      href: `/courses-map`,
+      text: "Peta Mata Kuliah",
+      icon: <PetaIcon />,
+    },
   ];
 
   return (
