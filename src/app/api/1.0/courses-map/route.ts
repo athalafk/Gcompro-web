@@ -240,7 +240,7 @@ function passedByGrade(grade: string | null | undefined, minIndex: string | null
   return g >= m;
 }
 
-export async function GET(_req: NextRequest, context: { params: Promise<{ id: string }> }) {
+export async function GET(req: NextRequest, context: { params: Promise<{ id: string }> }) {
   const { id: studentId } = await context.params;
   if (!studentId || !isUuidLike(studentId)) return jsonPrivate({ error: "Invalid student id" }, 400);
 
