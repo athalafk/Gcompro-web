@@ -19,5 +19,5 @@ export default function StudentsOverviewPage() {
     }
   }
 
-  return <StudentsOverview studentId={studentId} />;
+  return <StudentsOverview studentId={studentId!} />;
 }
