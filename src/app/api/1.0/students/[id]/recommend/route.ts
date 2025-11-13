@@ -199,32 +199,62 @@ async function computeRecommendPure(studentId: string): Promise<ComputeResult> {
 
     const current_semester = Number(latestSem?.semester_no ?? 1) || 1;
 
-    // Ambil MK lulus unik
+    // 1. Ambil MK lulus unik, TERMASUK flag boolean 'mk_pilihan'
     const { data: passedRows, error: passedErr } = await db
       .from('enrollments')
-      .select('kelulusan, course:courses!inner(kode)')
+      .select('kelulusan, course:courses!inner(kode, mk_pilihan)') 
       .eq('student_id', studentId)
       .eq('kelulusan', 'Lulus');
     if (passedErr) return { status: 500, body: { error: passedErr.message } };
 
-    const courses_passed = Array.from(
-      new Set(
-        (passedRows ?? [])
-          .map((r: any) => (r?.course?.kode ?? '').toString().trim())
-          .filter((k: string) => k.length > 0),
-      ),
-    );
+    // 2. Proses untuk mendapatkan daftar kode MK unik DAN mengganti MK Pilihan
+    
+    // Map akan menyimpan { kode, isPilihan (boolean) }
+    const uniqueCourses = new Map<string, { kode: string, isPilihan: boolean }>();
+    
+    (passedRows ?? []).forEach((r: any) => {
+      const kode = (r?.course?.kode ?? '').toString().trim();
+      const isPilihan = r?.course?.mk_pilihan === true; 
+      
+      if (kode.length > 0 && !uniqueCourses.has(kode)) {
+        uniqueCourses.set(kode, { kode, isPilihan });
+      }
+    });
+
+    // Buat array final untuk dikirim ke AI
+    const courses_passed_for_ai: string[] = [];
+    let electiveCounter = 1;
+    
+    for (const course of uniqueCourses.values()) {
+      if (course.isPilihan) { 
+        courses_passed_for_ai.push(`MK_PILIHAN${electiveCounter}`);
+        electiveCounter++;
+      } else {
+        courses_passed_for_ai.push(course.kode);
+      }
+    }
 
     // Call AI
     const base = process.env.AI_BASE_URL;
     if (!base) return { status: 500, body: { error: 'AI_BASE_URL is not configured' } };
 
+    console.log('[AI RECOMMEND] Sending payload to AI service:', {
+      studentId,
+      current_semester,
+      courses_passed_count: courses_passed_for_ai.length,
+      courses_passed: courses_passed_for_ai, 
+    });
+
     const res = await fetchWithTimeout(joinUrl(base, '/recommend/'), {
       method: 'POST',
       headers: { 'content-type': 'application/json', accept: 'application/json' },
-      body: JSON.stringify({ current_semester, courses_passed }),
+      body: JSON.stringify({ 
+        current_semester, 
+        courses_passed: courses_passed_for_ai
+      }),
       timeoutMs: 15_000,
     });
+    
     if (!res.ok) {
       const text = await res.text().catch(() => '');
       return {

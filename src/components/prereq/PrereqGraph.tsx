@@ -44,10 +44,10 @@ function CourseCard({ node, displayId, prereqMap }: CourseCardProps) {
         borderColor: borderColor,
         color: textColor,
       }}
-      className="border rounded-lg p-3 shadow-sm"
+      className="border rounded-lg p-3 shadow-sm w-[220px] h-[120px] flex flex-col"
     >
       {/* Bagian Prasyarat (Nomor di atas) */}
-      <div className="flex flex-wrap gap-1 mb-2 h-6">
+      <div className="flex flex-wrap gap-1 mb-2 h-6 ">
         {prereqTags.map((tagId) => (
           <span
             key={tagId}
