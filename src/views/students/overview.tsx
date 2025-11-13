@@ -1,12 +1,12 @@
 'use client';
 
-import { useState, useEffect } from "react";
-import LoadingSpinner from "@/components/loading/loading-spinner";
+import { useEffect, useState } from 'react';
+import LoadingSpinner from '@/components/loading/loading-spinner';
 
-import BlueStatCard from "@/components/features/students/BlueStatCard";
-import GpaLineChart from "@/components/charts/apex/GpaLineChart";
-import GradePieChart from "@/components/charts/apex/GradePieChart";
-import TranscriptTable from "@/components/features/students/TranscriptTable";
+import BlueStatCard from '@/components/features/students/BlueStatCard';
+import GpaLineChart from '@/components/charts/apex/GpaLineChart';
+import GradePieChart from '@/components/charts/apex/GradePieChart';
+import TranscriptTable from '@/components/features/students/TranscriptTable';
 
 import {
   getStudentChart,
@@ -15,7 +15,9 @@ import {
   type ChartData,
   type StatsData,
   type TranscriptItem,
-} from "@/services/students";
+} from '@/services/students';
+
+import ChangePasswordCard from '@/components/auth/change-password-card';
 
 function getLatestValidValue(
   series: Array<{ name: string; data: (number | null)[] }>,
@@ -33,15 +35,21 @@ function getLatestValidValue(
 export default function StudentsOverview({ studentId }: { studentId: string }) {
   const [chartData, setChartData] = useState<ChartData | null>(null);
   const [statsData, setStatsData] = useState<StatsData | null>(null);
-  const [transcriptData, setTranscriptData] = useState<TranscriptItem[] | null>(null);
+  const [transcriptData, setTranscriptData] = useState<TranscriptItem[] | null>(
+    null
+  );
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // baca env (build-time)
+  const showDebugChangePassword =
+    process.env.NEXT_PUBLIC_DEBUG_CHANGE_PASSWORD === '1';
+
   useEffect(() => {
     if (!studentId) {
       setLoading(false);
-      setError("Student ID tidak disediakan.");
+      setError('Student ID tidak disediakan.');
       return;
     }
 
@@ -54,7 +62,7 @@ export default function StudentsOverview({ studentId }: { studentId: string }) {
       try {
         const [chart, stats, transcript] = await Promise.all([
           getStudentChart(studentId, controller.signal),
-          getStudentStats(studentId, "Ganjil 2023/2024", controller.signal),
+          getStudentStats(studentId, 'Ganjil 2023/2024', controller.signal),
           getStudentTranscript(studentId, { signal: controller.signal }),
         ]);
 
@@ -64,10 +72,11 @@ export default function StudentsOverview({ studentId }: { studentId: string }) {
         setStatsData(stats);
         setTranscriptData(transcript);
       } catch (err: any) {
-        if (err?.name === "CanceledError" || err?.message === "canceled") return;
+        if (err?.name === 'CanceledError' || err?.message === 'canceled')
+          return;
         if (controller.signal.aborted) return;
 
-        setError(err?.message ?? "Gagal memuat data");
+        setError(err?.message ?? 'Gagal memuat data');
         setChartData(null);
         setStatsData(null);
         setTranscriptData(null);
@@ -88,14 +97,18 @@ export default function StudentsOverview({ studentId }: { studentId: string }) {
     return <main className="p-6">Data statistik tidak ditemukan.</main>;
   }
 
-  const latestIps = getLatestValidValue(chartData.line.series, "IPS");
-  const latestIpk = getLatestValidValue(chartData.line.series, "IPK");
+  const latestIps = getLatestValidValue(chartData.line.series, 'IPS');
+  const latestIpk = getLatestValidValue(chartData.line.series, 'IPK');
   const { total_sks, sks_selesai, sks_tersisa } = statsData;
 
   return (
     <main className="p-6 space-y-6">
+      {showDebugChangePassword && <ChangePasswordCard />}
+
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-semibold text-gray-800">Statistik Akademik</h1>
+        <h1 className="text-2xl font-semibold text-gray-800">
+          Statistik Akademik
+        </h1>
         <div className="text-right">
           <h2 className="text-xl font-extrabold text-[#02325B]">SIPANDAI</h2>
           <p className="text-xs text-gray-500">

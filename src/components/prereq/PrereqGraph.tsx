@@ -71,62 +71,79 @@ function CourseCard({ node, displayId, prereqMap }: CourseCardProps) {
 
 // --- Komponen Utama (Grid) ---
 export default function CurriculumGrid({ nodes }: CurriculumGridProps) {
-  // 1. Proses data sekali saja
-  const { nodesBySemester, codeToDisplayId, maxSemester } = useMemo(() => {
-    const codeMap = new Map<string, string>();
-    const semesterMap = new Map<number, CourseMapNode[]>();
-    let maxSem = 0;
+const { nodesBySemester, codeToDisplayId, maxSemester } = useMemo(() => {
+  const semesterMapRaw = new Map<number, CourseMapNode[]>();
+  const codeMap = new Map<string, string>();
+  let maxSem = 0;
 
-    // Sortir node agar 'Display ID' konsisten
-    // Urutkan berdasarkan semester, lalu nama MK
-    const sortedNodes = [...nodes].sort((a, b) => {
-      const semA = a.semester_plan ?? 99;
-      const semB = b.semester_plan ?? 99;
-      if (semA !== semB) return semA - semB;
-      return a.name.localeCompare(b.name);
-    });
+  // 1) Kelompokkan dulu per semester (tanpa peduli urutan)
+  for (const node of nodes) {
+    let semester = node.semester_plan ?? 0;
 
-    // Buat map 'code' -> 'Display ID' (misal: "IF101" -> "2")
-    sortedNodes.forEach((node, index) => {
-      // Kita gunakan index+1 sebagai Display ID (1, 2, 3, ...)
-      codeMap.set(node.code, String(index + 1));
-    });
-
-    // Kelompokkan node berdasarkan semester untuk layout grid
-    for (const node of sortedNodes) {
-      // API mengembalikan 7 dan 8 untuk MK Pilihan/courses-map/route.ts]
-      let semester = node.semester_plan ?? 0;
-
-      // Jika semester_plan null atau 0 (mungkin MK Pilihan lama), coba tebak
-      if (semester === 0 && node.mk_pilihan) {
-        semester = 7; // Asumsikan MK Pilihan ada di semester 7
-      }
-      // Semua yang tidak punya semester (selain MK Pilihan) taruh di kolom 'Lainnya'
-      else if (semester === 0) {
-        semester = 9; // Kolom "Lainnya"
-      }
-
-      if (semester > maxSem && semester <= 8) maxSem = semester;
-
-      if (!semesterMap.has(semester)) {
-        semesterMap.set(semester, []);
-      }
-      semesterMap.get(semester)!.push(node);
+    if (semester === 0 && node.mk_pilihan) {
+      semester = 7;
+    } else if (semester === 0) {
+      semester = 9;
     }
 
-    // Pastikan kita setidaknya menampilkan 8 semester
-    if (maxSem < 8) maxSem = 8;
+    if (semester > maxSem && semester <= 8) maxSem = semester;
 
-    return {
-      nodesBySemester: semesterMap,
-      codeToDisplayId: codeMap,
-      maxSemester: maxSem,
-    };
-  }, [nodes]);
+    if (!semesterMapRaw.has(semester)) {
+      semesterMapRaw.set(semester, []);
+    }
+    semesterMapRaw.get(semester)!.push(node);
+  }
 
-  // Buat array semester (kolom)
+  if (maxSem < 8) maxSem = 8;
+
+  const isPlaceholder = (code: string) => /^MK_PILIHAN\d+$/i.test(code);
+
+  // 2) Urutkan isi tiap semester:
+  const orderedSemesterMap = new Map<number, CourseMapNode[]>();
+
+  semesterMapRaw.forEach((list, sem) => {
+    const regular = list
+      .filter((n) => !n.mk_pilihan)
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    const realMkPilihan = list
+      .filter((n) => n.mk_pilihan && !isPlaceholder(n.code))
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    const placeholder = list
+      .filter((n) => n.mk_pilihan && isPlaceholder(n.code))
+      // kalau mau, boleh urutkan berdasar angka di belakang
+      .sort((a, b) => {
+        const numA = Number(a.code.replace(/\D+/g, "")) || 0;
+        const numB = Number(b.code.replace(/\D+/g, "")) || 0;
+        return numA - numB;
+      });
+
+    orderedSemesterMap.set(sem, [...regular, ...realMkPilihan, ...placeholder]);
+  });
+
+  // 3) Kasih nomor displayId sesuai urutan visual:
+  let counter = 1;
+  for (let sem = 1; sem <= maxSem; sem++) {
+    const list = orderedSemesterMap.get(sem) ?? [];
+    for (const node of list) {
+      codeMap.set(node.code, String(counter++));
+    }
+  }
+  const otherList = orderedSemesterMap.get(9) ?? [];
+  for (const node of otherList) {
+    codeMap.set(node.code, String(counter++));
+  }
+
+  return {
+    nodesBySemester: orderedSemesterMap,
+    codeToDisplayId: codeMap,
+    maxSemester: maxSem,
+  };
+}, [nodes]);
+
   const semesters = Array.from({ length: maxSemester }, (_, i) => i + 1);
-  const otherNodes = nodesBySemester.get(9) ?? []; // Kolom "Lainnya"
+  const otherNodes = nodesBySemester.get(9) ?? [];
 
   return (
     <div className="w-full overflow-x-auto pb-4">

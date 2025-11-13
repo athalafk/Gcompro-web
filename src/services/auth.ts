@@ -1,6 +1,6 @@
 import { http } from '@/lib/http';
 import { joinApi } from '@/lib/url';
-import type { MyProfile } from '@/models/types/auth/auth';
+import type { MyProfile, ChangePasswordPayload, ChangePasswordResult } from '@/models/types/auth/auth';
 
 import { createSupabaseBrowserClient } from '@/utils/supabase/browser';
 
@@ -53,5 +53,27 @@ export async function logout(signal?: AbortSignal): Promise<void> {
     } catch (err: any) {
       console.warn('logout Supabase error:', err?.message ?? err);
     }
+  }
+}
+
+// --- Change password user ---
+export async function changePassword(body: ChangePasswordPayload, signal?: AbortSignal): Promise<ChangePasswordResult> {
+  try {
+    await http.post(joinApi('/auth/change-password'), body, { signal });
+
+    // kalau sukses → logout
+    await http.post(joinApi('/auth/logout'));
+
+    return {
+      ok: true,
+      message: 'Password berhasil diubah. Silakan login ulang.'
+    };
+  } catch (err: any) {
+    const apiErr =
+      err?.response?.data?.message ||
+      err?.response?.data?.error ||
+      err?.message ||
+      'Gagal mengubah password';
+    return { ok: false, error: String(apiErr) };
   }
 }

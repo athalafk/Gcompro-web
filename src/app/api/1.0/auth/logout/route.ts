@@ -62,9 +62,23 @@ export async function POST(req: NextRequest) {
 
   try {
     const { supabase } = withSupabaseRouteCarrier(req, res);
+
     await supabase.auth.signOut({ scope: 'global' });
+
+    req.cookies.getAll().forEach((cookie) => {
+      if (cookie.name.startsWith('sb-')) {
+        res.cookies.set(cookie.name, '', {
+          path: '/',
+          maxAge: 0,
+        });
+      }
+    });
+
     return res;
   } catch (e: any) {
-    return jsonNoStore({ error: e?.message || 'Unexpected error occurred.' }, 500);
+    return jsonNoStore(
+      { error: e?.message || 'Unexpected error occurred.' },
+      500
+    );
   }
 }
