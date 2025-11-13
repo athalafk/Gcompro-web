@@ -44,7 +44,7 @@ export default function StudentsOverview({ studentId }: { studentId: string }) {
 
   // baca env (build-time)
   const showDebugChangePassword =
-    process.env.NEXT_PUBLIC_DEBUG_CHANGE_PASSWORD === '1';
+    process.env.NEXT_PUBLIC_DEBUG_CONSOLE === '1';
 
   useEffect(() => {
     if (!studentId) {

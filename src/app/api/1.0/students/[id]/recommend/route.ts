@@ -184,6 +184,8 @@ type ComputeResult =
 
 // ---------- 1) PURE compute ----------
 async function computeRecommendPure(studentId: string): Promise<ComputeResult> {
+  const showDebugConsole =
+    process.env.NEXT_PUBLIC_DEBUG_CONSOLE === '1';
   try {
     const db = createAdminClient();
 
@@ -209,7 +211,6 @@ async function computeRecommendPure(studentId: string): Promise<ComputeResult> {
 
     // 2. Proses untuk mendapatkan daftar kode MK unik DAN mengganti MK Pilihan
     
-    // Map akan menyimpan { kode, isPilihan (boolean) }
     const uniqueCourses = new Map<string, { kode: string, isPilihan: boolean }>();
     
     (passedRows ?? []).forEach((r: any) => {
@@ -238,12 +239,14 @@ async function computeRecommendPure(studentId: string): Promise<ComputeResult> {
     const base = process.env.AI_BASE_URL;
     if (!base) return { status: 500, body: { error: 'AI_BASE_URL is not configured' } };
 
-    console.log('[AI RECOMMEND] Sending payload to AI service:', {
-      studentId,
-      current_semester,
-      courses_passed_count: courses_passed_for_ai.length,
-      courses_passed: courses_passed_for_ai, 
-    });
+    if (showDebugConsole) {
+      console.log('[AI RECOMMEND] Sending payload to AI service:', {
+        studentId,
+        current_semester,
+        courses_passed_count: courses_passed_for_ai.length,
+        courses_passed: courses_passed_for_ai, 
+      });
+    }
 
     const res = await fetchWithTimeout(joinUrl(base, '/recommend/'), {
       method: 'POST',
