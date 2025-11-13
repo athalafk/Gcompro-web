@@ -119,7 +119,7 @@ export default function RiskAnalysisView({ studentId }: { studentId: string }) {
 
       try {
         const [resp, recs] = await Promise.all([
-          getLatestRisk(studentId, controller.signal ),
+          analyzeRisk(studentId, { signal:controller.signal} ),
           getRecommendations(studentId, { signal: controller.signal }).catch(() => null),
         ]);
 
