@@ -7,6 +7,7 @@ import { ProfileProvider, useProfileContext } from "@/contexts/profile-context";
 import SidebarNav from "@/components/dashboard/SidebarNav";
 // --- 2. Impor AdminSidebarNav ---
 import AdminSidebarNav from "@/components/dashboard/AdminSidebarNav";
+import { LogoutButton } from "@/components/auth/logout-button";
 
 // ... (fungsi initials(name) tetap sama) ...
 function initials(name: string | null) {
@@ -135,21 +136,11 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
               </div>
             )}
           </nav>
-          {/* --- AKHIR MODIFIKASI --- */}
 
-          {/* Tombol Logout (Gunakan implementasi Anda) */}
-          <div className="mt-auto">
-            <form action="/api/auth/logout" method="POST">
-              <button
-                type="submit"
-                className="w-full rounded-lg bg-blue-900 px-4 py-3 text-center font-medium text-white transition-colors hover:bg-blue-800"
-              >
-                Keluar
-              </button>
-            </form>
-          </div>
+          {/* Tombol Logout */}
+          <LogoutButton />
 
-          {/* ... (Branding SIPANDAI Anda) ... */}
+          {/* Branding SIPANDAI */}
           <div className="text-center mt-4">
             <h3 className="text-lg font-bold text-blue-300">SIPANDAI</h3>
             <p className="text-xs text-blue-400">
