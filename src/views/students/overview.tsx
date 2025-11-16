@@ -17,7 +17,6 @@ import {
   type TranscriptItem,
 } from '@/services/students';
 
-import ChangePasswordCard from '@/components/auth/change-password-card';
 
 function getLatestValidValue(
   series: Array<{ name: string; data: (number | null)[] }>,
@@ -103,7 +102,6 @@ export default function StudentsOverview({ studentId }: { studentId: string }) {
 
   return (
     <main className="p-6 space-y-6">
-      {showDebugChangePassword && <ChangePasswordCard />}
 
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-semibold text-gray-800">
