@@ -55,7 +55,6 @@ export default function LoginView() {
           router.replace(redirectTo);
         }
       }
-      router.refresh();
     } catch (err) {
       console.error(err);
       setError("Terjadi kesalahan. Silakan coba lagi.");

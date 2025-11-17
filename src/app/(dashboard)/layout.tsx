@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useProfileContext } from "@/contexts/profile-context";
+import { ProfileProvider, useProfileContext } from "@/contexts/profile-context";
 import SidebarNav from "@/components/dashboard/SidebarNav";
 import AdminSidebarNav from "@/components/dashboard/AdminSidebarNav";
 import { LogoutButton } from "@/components/auth/logout-button";
@@ -19,7 +19,11 @@ type ViewingStudent = {
 };
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  return <DashboardLayoutInner>{children}</DashboardLayoutInner>;
+  return (
+    <ProfileProvider>
+      <DashboardLayoutInner>{children}</DashboardLayoutInner>
+    </ProfileProvider>
+  );
 }
 
 function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
@@ -48,8 +52,8 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex h-screen bg-gray-50">
-      <aside className="w-64 flex-shrink-0 bg-[#02325B] text-white flex flex-col">
-        <div className="flex-grow flex flex-col p-4">
+      <aside className="w-64 shrink-0 bg-[#02325B] text-white flex flex-col">
+        <div className="grow flex flex-col p-4">
           {/* Profil di sidebar */}
           <div className="text-center p-4 mb-4">
             <div className="w-20 h-20 rounded-full bg-gray-300 mx-auto mb-3 flex items-center justify-center text-gray-700 font-semibold">
@@ -82,7 +86,7 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
           </div>
 
           {/* Navigasi */}
-          <nav className="flex-grow">
+          <nav className="grow">
             {loading ? (
               <div className="px-2">
                 <div className="h-8 rounded bg-white/10 mb-2 animate-pulse" />
