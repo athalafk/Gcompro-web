@@ -40,8 +40,22 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  if (session && isAuthRoute) {
-    return NextResponse.redirect(new URL('/dashboard', origin))
+  if (session && (isAuthRoute || isRoot)) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', session.user.id)
+      .single()
+
+    if (!profile) {
+      return NextResponse.redirect(new URL('/dashboard', origin))
+    }
+
+    if (profile.role === 'admin') {
+      return NextResponse.redirect(new URL('/admin', origin))
+    } else {
+      return NextResponse.redirect(new URL('/dashboard', origin))
+    }
   }
 
   return res
