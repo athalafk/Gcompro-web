@@ -10,7 +10,7 @@ import {
   useState,
   type PropsWithChildren,
 } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import type { MyProfile } from "@/models/types/auth/auth";
 import { getMyProfile } from "@/services/auth";
 
@@ -18,14 +18,8 @@ type ProfileCtx = {
   profile: MyProfile | null;
   loading: boolean;
   error: string | null;
-  /** studentId efektif:
-   * - role === "student"  -> id milik student sendiri
-   * - role === "admin"    -> id student yang dipilih admin (jika ada), else null
-   */
   studentId: string | null;
-
   refresh: () => Promise<void>;
-
   setAdminStudentId: (id: string | null) => void;
   adminSelectedStudentId: string | null;
 };
@@ -48,6 +42,7 @@ export function ProfileProvider({ children }: PropsWithChildren) {
 
   const hasFetchedRef = useRef(false);
   const router = useRouter();
+  const pathname = usePathname(); // ⬅️ di sini
 
   const fetchProfile = useCallback(async () => {
     try {
@@ -56,7 +51,11 @@ export function ProfileProvider({ children }: PropsWithChildren) {
       const data = await getMyProfile();
 
       if (data === null) {
-        router.replace("/login");
+        // hanya redirect ke login kalau BUKAN sedang di halaman login
+        if (pathname !== "/login") {
+          router.replace("/login");
+        }
+        setProfile(null);
         return;
       }
 
@@ -67,19 +66,35 @@ export function ProfileProvider({ children }: PropsWithChildren) {
     } finally {
       setLoading(false);
     }
-  }, [router]);
+  }, [router, pathname]);
 
   useEffect(() => {
+    const isAuthRoute =
+      pathname === "/login" ||
+      pathname === "/register" ||
+      pathname.startsWith("/auth/") ||
+      pathname.startsWith("/api");
+
     if (hasFetchedRef.current) return;
+
+    if (isAuthRoute) {
+      setLoading(false);
+      setProfile(null);
+      return;
+    }
+
     hasFetchedRef.current = true;
     void fetchProfile();
-  }, [fetchProfile]);
+  }, [fetchProfile, pathname]);
 
   useEffect(() => {
     if (!profile) return;
 
     if (profile.role === "admin") {
-      const stored = typeof window !== "undefined" ? sessionStorage.getItem(ADMIN_SELECTED_KEY) : null;
+      const stored =
+        typeof window !== "undefined"
+          ? sessionStorage.getItem(ADMIN_SELECTED_KEY)
+          : null;
       setAdminSelectedStudentId(stored || null);
     } else {
       setAdminSelectedStudentId(null);
@@ -96,15 +111,8 @@ export function ProfileProvider({ children }: PropsWithChildren) {
 
   const studentId: string | null = useMemo(() => {
     if (!profile) return null;
-
-    if (profile.role === "student") {
-      return profile.id ?? null;
-    }
-
-    if (profile.role === "admin") {
-      return adminSelectedStudentId ?? null;
-    }
-
+    if (profile.role === "student") return profile.id ?? null;
+    if (profile.role === "admin") return adminSelectedStudentId ?? null;
     return null;
   }, [profile, adminSelectedStudentId]);
 

@@ -40,7 +40,7 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  if (session && (isAuthRoute || isRoot)) {
+  if (session && isAuthRoute) {
     return NextResponse.redirect(new URL('/dashboard', origin))
   }
 

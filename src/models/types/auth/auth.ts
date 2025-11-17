@@ -15,7 +15,7 @@ export type ProfileStudent = {
 
 export type MyProfile = ProfileAdmin | ProfileStudent;
 
-export type ErrorResponse = { error: string };
+export type ErrorResponse = { error: string };
 
 export type ChangePasswordPayload = {
   current_password: string;

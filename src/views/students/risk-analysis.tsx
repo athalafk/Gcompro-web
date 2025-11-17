@@ -15,6 +15,7 @@ type AiData = {
   explanation: {
     opening_line: string;
     factors: string[];
+    recommendation?: string;
   };
 };
 
@@ -44,9 +45,9 @@ const placeholderRecommendations = [
 
 function getRiskValue(level: RiskLevel): number {
   switch (level) {
-    case 'Aman': return 15;
-    case 'Resiko Rendah': return 40;
-    case 'Resiko Sedang': return 70;
+    case 'Aman': return 10;
+    case 'Resiko Rendah': return 30;
+    case 'Resiko Sedang': return 60;
     case 'Resiko Tinggi': return 90;
     default: return 50;
   }
@@ -56,20 +57,18 @@ function getRiskValue(level: RiskLevel): number {
 function toAiData(ai: AIRawResult | null | undefined): AiData | null {
   if (!ai) return null;
 
-  // Coba baca field yang umum; fallback aman bila key berbeda.
   const predictionRaw =
     (ai as any).prediction ??
     (ai as any).label ??
     (ai as any).class ??
-    'Resiko Sedang';
+    "Resiko Sedang";
 
-  // Standarisasi teks prediksi ke union RiskLevel
   const normalized: RiskLevel =
-    /tinggi/i.test(predictionRaw) ? 'Resiko Tinggi' :
-    /sedang/i.test(predictionRaw) ? 'Resiko Sedang' :
-    /rendah/i.test(predictionRaw) ? 'Resiko Rendah' :
-    /aman/i.test(predictionRaw) ? 'Aman' :
-    'Resiko Sedang';
+    /tinggi/i.test(predictionRaw) ? "Resiko Tinggi" :
+    /sedang/i.test(predictionRaw) ? "Resiko Sedang" :
+    /rendah/i.test(predictionRaw) ? "Resiko Rendah" :
+    /aman/i.test(predictionRaw) ? "Aman" :
+    "Resiko Sedang";
 
   const probs =
     (ai as any).probabilities ??
@@ -81,22 +80,29 @@ function toAiData(ai: AIRawResult | null | undefined): AiData | null {
     (ai as any).explanation?.opening_line ??
     (ai as any).explanation?.opening ??
     (ai as any).explanation ??
-    '';
+    "";
 
   const factors =
     (ai as any).explanation?.factors ??
     (ai as any).factors ??
     [];
 
+  const recommendation =
+    (ai as any).explanation?.recommendation ??
+    (ai as any).recommendation ??
+    "";
+
   return {
     prediction: normalized,
     probabilities: probs,
     explanation: {
-      opening_line: String(opening || ''),
+      opening_line: String(opening || ""),
       factors: Array.isArray(factors) ? factors : [],
+      recommendation: recommendation ? String(recommendation) : undefined, // 👈 NEW
     },
   };
 }
+
 
 export default function RiskAnalysisView({ studentId }: { studentId: string }) {
   const [riskData, setRiskData] = useState<AiData | null>(null);
@@ -183,23 +189,34 @@ export default function RiskAnalysisView({ studentId }: { studentId: string }) {
             </p>
 
             {explanation?.factors?.length > 0 && (
-              <ul className="list-disc list-inside text-sm text-gray-600 mt-3 space-y-1">
+              <ul className="list-none list-inside text-sm text-gray-600 mt-3 space-y-1">
                 {explanation.factors.map((factor, idx) => (
                   <li key={idx}>{factor}</li>
                 ))}
               </ul>
             )}
-
-            <p className="text-xs text-gray-400 mt-4">
-              *Kategori ini dihitung dari kombinasi faktor IPK, IPS, serta jumlah SKS
-              yang telah diselesaikan dan sedang ditempuh.
-            </p>
           </div>
 
           <div className="md:col-span-2 flex items-center justify-center p-6 border-t md:border-t-0 md:border-l border-gray-100">
             <RiskProgressBar level={prediction} value={riskValue} />
           </div>
         </div>
+
+        {/* 🔥 Rekomendasi Tindak Lanjut dari AI – di bawah explanation & progress bar */}
+        {explanation?.recommendation && (
+          <div className="border-t border-gray-100 bg-gray-50 px-6 py-4">
+            <h4 className="text-sm font-semibold text-gray-700 mb-1">
+              Rekomendasi Tindak Lanjut
+            </h4>
+            <p className="text-sm text-gray-600 whitespace-pre-line">
+              {explanation.recommendation}
+            </p>
+          </div>
+        )}
+        {/* <p className="text-xs text-gray-400 mt-2 ml-4 mb-2">
+          *Kategori ini dihitung dari kombinasi faktor IPK, IPS, serta jumlah SKS
+          yang telah diselesaikan dan sedang ditempuh.
+        </p> */}
       </div>
 
       {/* Rekomendasi (placeholder) */}

@@ -233,10 +233,10 @@ export async function getStudentDetail(id: string, signal?: AbortSignal) {
 export type StudentsListParams = {
   search?: string;
   prodi?: string;
-  angkatan?: number; // <-- DITAMBAHKAN
+  angkatan?: number;
   page?: number;
   pageSize?: number;
-  sortBy?: 'nim' | 'nama' | 'prodi' | 'angkatan'; // <-- DITAMBAHKAN
+  sortBy?: 'nim' | 'nama' | 'prodi' | 'angkatan';
   sortDir?: 'asc' | 'desc';
 };
 
@@ -245,18 +245,18 @@ export async function listStudents(
   signal?: AbortSignal
 ) {
   const res = await http.get<{
-    items: Array<{ id: string; nim: string; nama: string; prodi: string; angkatan: number }>; // <-- DITAMBAHKAN
+    items: Array<{ id: string; nim: string; nama: string; prodi: string; angkatan: number }>;
     page: number;
     pageSize: number;
     total: number;
     sortBy: string;
     sortDir: 'asc' | 'desc';
-    filters: { prodi: string | null; search: string | null; angkatan: number | null }; // <-- DITAMBAHKAN
+    filters: { prodi: string | null; search: string | null; angkatan: number | null };
   }>(joinApi('/students'), {
     params: {
       ...(params.search ? { search: params.search } : {}),
       ...(params.prodi ? { prodi: params.prodi } : {}),
-      ...(params.angkatan ? { angkatan: params.angkatan } : {}), // <-- DITAMBAHKAN
+      ...(params.angkatan ? { angkatan: params.angkatan } : {}),
       ...(params.page ? { page: params.page } : {}),
       ...(params.pageSize ? { pageSize: params.pageSize } : {}),
       ...(params.sortBy ? { sortBy: params.sortBy } : {}),

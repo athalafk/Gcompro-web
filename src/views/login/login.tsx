@@ -48,7 +48,13 @@ export default function LoginView() {
         setError(data.error || "Login gagal. Coba lagi.");
         return;
       }
-      router.replace(redirectTo);
+      if ('role' in data) {
+        if (data.role === "admin") {
+          router.replace("/admin");
+        } else {
+          router.replace(redirectTo);
+        }
+      }
       router.refresh();
     } catch (err) {
       console.error(err);

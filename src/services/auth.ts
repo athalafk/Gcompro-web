@@ -17,7 +17,7 @@ export function getSb() {
 export async function loginWithNim(nim: string, password: string) {
   try {
     const res = await http.post(joinApi('/auth/login'), { nim, password });
-    return res.data as { user?: MyProfile; error?: string; message?: string };
+    return res.data as { role: string; error?: string; message?: string };
   } catch (err: any) {
     const apiErr = err?.response?.data?.error || err?.message || 'Login failed';
     return { error: String(apiErr) } as { error: string };

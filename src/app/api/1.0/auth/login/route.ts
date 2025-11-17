@@ -113,17 +113,50 @@ export async function POST(req: NextRequest) {
 
   if (!nim || !password) return jsonNoStore({ error: 'NIM dan kata sandi wajib diisi.' }, 400);
 
-  const res = NextResponse.json({ message: 'Login successful' }, { status: 200 });
+  const res = NextResponse.json({});
   res.headers.set('Cache-Control', 'no-store');
 
   try {
     const { supabase } = withSupabaseRouteCarrier(req, res);
-    const { error } = await supabase.auth.signInWithPassword({
+    
+    // 1. Lakukan sign in
+    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
       email: `${nim}@${EMAIL_DOMAIN}`,
       password,
     });
-    if (error) return jsonNoStore({ error: 'NIM atau kata sandi salah.' }, 401);
-    return res;
+
+    if (authError) {
+      return jsonNoStore({ error: 'NIM atau kata sandi salah.' }, 401);
+    }
+
+    if (!authData.user) {
+      return jsonNoStore({ error: 'Gagal mendapatkan data user setelah login.' }, 500);
+    }
+
+    // 2. Ambil profil berdasarkan user ID yang baru login
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('role, full_name, nim')
+      .eq('id', authData.user.id)
+      .single();
+
+    if (profileError || !profile) {
+      await supabase.auth.signOut();
+      return jsonNoStore({ error: 'Profil tidak ditemukan untuk user ini.' }, 404);
+    }
+    
+    // 3. Kembalikan data profil (termasuk role)
+    return NextResponse.json(
+      { 
+        message: "Login successful",
+        role: profile.role
+      }, 
+      { 
+        status: 200, 
+        headers: res.headers
+      }
+    );
+
   } catch (e: any) {
     return jsonNoStore({ error: e?.message || 'Unexpected error occurred.' }, 500);
   }
