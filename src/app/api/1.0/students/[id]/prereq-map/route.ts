@@ -123,12 +123,14 @@ export async function GET(_req: NextRequest, context: { params: Promise<{ id: st
   const [{ data: courses }, { data: edges }, { data: enr }] = await Promise.all([
     supabase.from("courses").select("id,kode,nama,sks,min_index"),
     supabase.from("course_prereq").select("course_id,prereq_course_id"),
-    supabase.from("enrollments").select("course_id,grade_index,is_current").eq("student_id", studentId),
+    supabase.from("enrollments").select("course_id,grade_index,status").eq("student_id", studentId),
   ]);
 
   const passed = new Set(enr?.filter((e) => ["A", "B", "C"].includes(e.grade_index)).map((e) => e.course_id));
   const failed = new Set(enr?.filter((e) => ["D", "E"].includes(e.grade_index)).map((e) => e.course_id));
-  const current = new Set(enr?.filter((e) => e.is_current).map((e) => e.course_id));
+  const current = new Set(
+    (enr ?? []).filter((e: any) => e.status === 'ONGOING').map((e: any) => e.course_id),
+  );
 
   const nodes = (courses ?? []).map((c) => ({
     id: c.id,
