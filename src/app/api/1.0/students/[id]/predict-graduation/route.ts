@@ -10,7 +10,7 @@
  *       Payload yang dikirim ke AI:
  *       - `current_semester` (integer): semester terakhir mahasiswa (berdasarkan `v_student_cumulative.semester_no` terbaru).
  *       - `total_sks_passed` (integer): total SKS yang **lulus** (dari `enrollments` dengan `status='FINAL'` dan `kelulusan='Lulus'`).
- *       - `ipk_last_semester` (number): IPS semester terakhir (diambil dari `v_student_cumulative.ip_semester` terbaru).
+ *       - `ipk_last_semester` (number): IPS semester terakhir (diambil dari `v_student_cumulative.ips` terbaru).
  *       - `courses_passed` (array<string>): daftar **kode** mata kuliah yang lulus (unik), join `enrollments` -> `courses.kode`.
  *
  *       Catatan:
@@ -190,7 +190,7 @@ async function computePredictGraduationPure(studentId: string): Promise<ComputeR
     // A) Ambil semester terakhir + IPS terakhir dari v_student_cumulative
     const { data: lastCum, error: cumErr } = await db
       .from('v_student_cumulative')
-      .select('semester_no, ip_semester')
+      .select('semester_no, ips')
       .eq('student_id', studentId)
       .order('semester_no', { ascending: false })
       .limit(1)
@@ -199,7 +199,7 @@ async function computePredictGraduationPure(studentId: string): Promise<ComputeR
     if (cumErr) return { status: 500, body: { error: cumErr.message } };
 
     const current_semester = (Number(lastCum?.semester_no ?? 1) || 1) + 1;
-    const ipk_last_semester = Number(lastCum?.ip_semester ?? 0) || 0;
+    const ipk_last_semester = Number(lastCum?.ips ?? 0) || 0;
 
     // B) Ambil MK lulus (status FINAL) untuk total_sks_passed + courses_passed
     const { data: passedRows, error: passedErr } = await db
