@@ -1,24 +1,25 @@
 /**
  * @swagger
- * /students/{id}/recommend:
+ * /students/{id}/predict-graduation:
  *   post:
- *     summary: Ambil rekomendasi mata kuliah dari AI untuk mahasiswa tertentu
+ *     summary: Prediksi kelulusan tepat waktu (≤ 8 semester) untuk mahasiswa (proxy ke AI)
  *     description: |
- *       Endpoint ini menyiapkan payload untuk layanan AI berdasarkan data mahasiswa,
- *       lalu **meneruskan** (proxy) respons rekomendasi dari AI ke frontend.
+ *       Endpoint ini menyiapkan payload dari data akademik mahasiswa, lalu **meneruskan** (proxy)
+ *       respons prediksi dari AI service (`POST /predict-graduation/`) ke frontend.
  *
  *       Payload yang dikirim ke AI:
- *       - `current_semester` (integer): semester terakhir/terkini yang terdeteksi dari enrollments mahasiswa.
- *       - `courses_passed` (array<string>): daftar **kode** mata kuliah yang berstatus *Lulus*.
+ *       - `current_semester` (integer): semester terakhir mahasiswa (berdasarkan `v_student_cumulative.semester_no` terbaru).
+ *       - `total_sks_passed` (integer): total SKS yang **lulus** (dari `enrollments` dengan `status='FINAL'` dan `kelulusan='Lulus'`).
+ *       - `ipk_last_semester` (number): IPS semester terakhir (diambil dari `v_student_cumulative.ip_semester` terbaru).
+ *       - `courses_passed` (array<string>): daftar **kode** mata kuliah yang lulus (unik), join `enrollments` -> `courses.kode`.
  *
  *       Catatan:
  *       - Endpoint **memerlukan sesi Supabase**.
  *       - Jika user **admin**, query dijalankan dengan service-role (bypass RLS).
- *       - Jika user **student**, hanya dapat mengakses rekomendasi dirinya sendiri.
+ *       - Jika user **student**, hanya dapat mengakses prediksi dirinya sendiri.
  *       - Tambahkan query `?cache=0` untuk memaksa hitung ulang (bypass cache).
- *       - Tidak membutuhkan request body; `id` di path digunakan untuk membangun payload.
  *     tags: [Students, AI]
- *     operationId: getStudentCourseRecommendations
+ *     operationId: predictStudentGraduation
  *     parameters:
  *       - in: path
  *         name: id
@@ -41,24 +42,19 @@
  *         content:
  *           application/json:
  *             schema:
- *               type: array
- *               items:
- *                 $ref: '#/components/schemas/AiRecommendationItem'
+ *               $ref: '#/components/schemas/AiPredictGraduationResponse'
  *             examples:
  *               sample:
- *                 summary: Contoh hasil rekomendasi
+ *                 summary: Contoh hasil prediksi kelulusan tepat waktu
  *                 value:
- *                   - rank: 1
- *                     code: "AAK3BAB3"
- *                     name: "Sistem Komunikasi 1"
- *                     sks: 3
- *                     semester_plan: 5
- *                     reason: "Rekomendasi semester ini"
- *                     priority_score: 0.6
- *                     is_tertinggal: false
- *                     prerequisites:
- *                       - { code: "AZK2AAB3", name: "Probabilitas dan Statistika" }
- *                       - { code: "AZK2GAB3", name: "Pengolahan Sinyal Waktu Kontinyu" }
+ *                   status: "🟢 Aman"
+ *                   color: "green"
+ *                   description: "Posisi aman. Beban ringan, sisa (~16.0 SKS yang perlu dipenuhi tiap semester. Pertahankan performa tiap semester!"
+ *                   stats:
+ *                     sks_needed: 144
+ *                     semesters_left: 9
+ *                     required_pace: 16
+ *                     student_capacity: 20
  *       400:
  *         description: Parameter path tidak valid (ID bukan UUID).
  *         content:
@@ -93,8 +89,10 @@
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  *             examples:
- *               ai_down:
- *                 value: { error: "AI service returned non-array payload" }
+ *               ai_error:
+ *                 value: { error: "AI service error (502): Bad Gateway" }
+ *               invalid_payload:
+ *                 value: { error: "AI service returned invalid payload" }
  *       500:
  *         description: Kesalahan server (gagal query Supabase atau AI_BASE_URL tidak diset).
  *         content:
@@ -107,46 +105,40 @@
  *
  * components:
  *   schemas:
- *     AiRecommendationItem:
+ *     AiPredictGraduationResponse:
  *       type: object
  *       additionalProperties: false
  *       properties:
- *         rank:
- *           type: integer
- *           example: 1
- *         code:
+ *         status:
  *           type: string
- *           example: "AAK3BAB3"
- *         name:
+ *           description: Label status prediksi (mis. Aman/Warning/Unsafe)
+ *           example: "🟢 Aman"
+ *         color:
  *           type: string
- *           example: "Sistem Komunikasi 1"
- *         sks:
- *           type: integer
- *           example: 3
- *         semester_plan:
- *           type: integer
- *           example: 5
- *         reason:
+ *           description: Warna indikator status (untuk UI)
+ *           example: "green"
+ *         description:
  *           type: string
- *           example: "Rekomendasi semester ini"
- *         is_tertinggal:
- *           type: boolean
- *           description: Menunjukkan apakah mata kuliah ini termasuk yang tertinggal dari semester sebelumnya.
- *           example: false
- *         priority_score:
- *           type: number
- *           example: 0.6
- *         prerequisites:
- *           type: array
- *           items:
- *             type: object
- *             properties:
- *               code:
- *                 type: string
- *                 example: "AZK2AAB3"
- *               name:
- *                 type: string
- *                 example: "Probabilitas dan Statistika"
+ *           description: Penjelasan singkat hasil prediksi
+ *           example: "Posisi aman. Beban ringan..."
+ *         stats:
+ *           type: object
+ *           additionalProperties: false
+ *           properties:
+ *             sks_needed:
+ *               type: integer
+ *               example: 144
+ *             semesters_left:
+ *               type: integer
+ *               example: 9
+ *             required_pace:
+ *               type: integer
+ *               example: 16
+ *             student_capacity:
+ *               type: integer
+ *               example: 20
+ *           required: [sks_needed, semesters_left, required_pace, student_capacity]
+ *       required: [status, color, description, stats]
  *
  *     ErrorResponse:
  *       type: object
@@ -157,7 +149,6 @@
  *       required: [error]
  */
 
-
 export const dynamic = 'force-dynamic';
 
 import { type NextRequest, NextResponse } from 'next/server';
@@ -166,98 +157,93 @@ import { createSupabaseServerClient } from '@/utils/supabase/server';
 import { createAdminClient } from '@/lib/supabase';
 import { unstable_cache, revalidateTag } from '@/utils/cache';
 
-type AiRecommendationItem = {
-  rank: number;
-  code: string;
-  name: string;
-  sks: number;
-  semester_plan: number;
-  reason: string;
-  is_tertinggal: boolean;
-  priority_score: number;
-  prerequisites?: Array<{ code: string; name: string }>;
+type AiPredictGraduationPayload = {
+  current_semester: number;
+  total_sks_passed: number;
+  ipk_last_semester: number;
+  courses_passed: string[];
+};
+
+type AiPredictGraduationResponse = {
+  status: string;
+  color: string;
+  description: string;
+  stats: {
+    sks_needed: number;
+    semesters_left: number;
+    required_pace: number;
+    student_capacity: number;
+  };
 };
 
 type ComputeResult =
-  | { status: 200; body: AiRecommendationItem[] }
+  | { status: 200; body: AiPredictGraduationResponse }
   | { status: number; body: { error: string } };
 
 // ---------- 1) PURE compute ----------
-async function computeRecommendPure(studentId: string): Promise<ComputeResult> {
-  const showDebugConsole =
-    process.env.NEXT_PUBLIC_DEBUG_CONSOLE === '1';
+async function computePredictGraduationPure(studentId: string): Promise<ComputeResult> {
+  const showDebugConsole = process.env.NEXT_PUBLIC_DEBUG_CONSOLE === '1';
+
   try {
     const db = createAdminClient();
 
-    // Ambil semester terakhir
-    const { data: latestSem, error: latestErr } = await db
-      .from('enrollments')
-      .select('semester_no')
+    // A) Ambil semester terakhir + IPS terakhir dari v_student_cumulative
+    const { data: lastCum, error: cumErr } = await db
+      .from('v_student_cumulative')
+      .select('semester_no, ip_semester')
       .eq('student_id', studentId)
       .order('semester_no', { ascending: false })
       .limit(1)
       .maybeSingle();
-    if (latestErr) return { status: 500, body: { error: latestErr.message } };
 
-    const current_semester = Number(latestSem?.semester_no ?? 1) || 1;
+    if (cumErr) return { status: 500, body: { error: cumErr.message } };
 
-    // 1. Ambil MK lulus unik, TERMASUK flag boolean 'mk_pilihan'
+    const current_semester = (Number(lastCum?.semester_no ?? 1) || 1) + 1;
+    const ipk_last_semester = Number(lastCum?.ip_semester ?? 0) || 0;
+
+    // B) Ambil MK lulus (status FINAL) untuk total_sks_passed + courses_passed
     const { data: passedRows, error: passedErr } = await db
       .from('enrollments')
-      .select('kelulusan, course:courses!inner(kode, mk_pilihan)') 
+      .select('sks, course:courses!inner(kode)')
       .eq('student_id', studentId)
+      .eq('status', 'FINAL')
       .eq('kelulusan', 'Lulus');
+
     if (passedErr) return { status: 500, body: { error: passedErr.message } };
 
-    // 2. Proses untuk mendapatkan daftar kode MK unik DAN mengganti MK Pilihan
-    
-    const uniqueCourses = new Map<string, { kode: string, isPilihan: boolean }>();
-    
-    (passedRows ?? []).forEach((r: any) => {
-      const kode = (r?.course?.kode ?? '').toString().trim();
-      const isPilihan = r?.course?.mk_pilihan === true; 
-      
-      if (kode.length > 0 && !uniqueCourses.has(kode)) {
-        uniqueCourses.set(kode, { kode, isPilihan });
-      }
-    });
+    let total_sks_passed = 0;
+    const uniqueCodes = new Set<string>();
 
-    // Buat array final untuk dikirim ke AI
-    const courses_passed_for_ai: string[] = [];
-    let electiveCounter = 1;
-    
-    for (const course of uniqueCourses.values()) {
-      if (course.isPilihan) { 
-        courses_passed_for_ai.push(`MK_PILIHAN${electiveCounter}`);
-        electiveCounter++;
-      } else {
-        courses_passed_for_ai.push(course.kode);
-      }
+    for (const r of passedRows ?? []) {
+      total_sks_passed += Number((r as any)?.sks ?? 0) || 0;
+      const kode = String((r as any)?.course?.kode ?? '').trim();
+      if (kode) uniqueCodes.add(kode);
     }
 
-    // Call AI
+    const courses_passed = Array.from(uniqueCodes);
+
+    // C) Call AI
     const base = process.env.AI_BASE_URL;
     if (!base) return { status: 500, body: { error: 'AI_BASE_URL is not configured' } };
 
+    const payload: AiPredictGraduationPayload = {
+      current_semester,
+      total_sks_passed,
+      ipk_last_semester,
+      courses_passed,
+    };
+
     if (showDebugConsole) {
-      console.log('[AI RECOMMEND] Sending payload to AI service:', {
-        studentId,
-        current_semester,
-        courses_passed_count: courses_passed_for_ai.length,
-        courses_passed: courses_passed_for_ai, 
-      });
+      console.log('[AI PREDICT GRADUATION] Sending payload:', payload);
     }
 
-    const res = await fetchWithTimeout(joinUrl(base, '/recommend/'), {
+    const res = await fetchWithTimeout(joinUrl(base, '/predict-graduation/'), {
       method: 'POST',
       headers: { 'content-type': 'application/json', accept: 'application/json' },
-      body: JSON.stringify({ 
-        current_semester, 
-        courses_passed: courses_passed_for_ai
-      }),
+      body: JSON.stringify(payload),
       timeoutMs: 15_000,
     });
-    
+
     if (!res.ok) {
       const text = await res.text().catch(() => '');
       return {
@@ -267,24 +253,24 @@ async function computeRecommendPure(studentId: string): Promise<ComputeResult> {
     }
 
     const data = await res.json().catch(() => null);
-    if (!Array.isArray(data)) {
-      return { status: 502, body: { error: 'AI service returned non-array payload' } };
+    if (!data || typeof data !== 'object') {
+      return { status: 502, body: { error: 'AI service returned invalid payload' } };
     }
 
-    return { status: 200, body: data as AiRecommendationItem[] };
+    return { status: 200, body: data as AiPredictGraduationResponse };
   } catch (e: any) {
     return { status: 500, body: { error: e?.message || 'Internal Server Error' } };
   }
 }
 
-// ---------- 2) Cached wrapper (key+tag per student) ----------
-function cachedRecommend(studentId: string) {
+// ---------- 2) Cached wrapper ----------
+function cachedPredictGraduation(studentId: string) {
   return unstable_cache(
-    async () => computeRecommendPure(studentId),
-    ['ai:recommend', studentId],
+    async () => computePredictGraduationPure(studentId),
+    ['ai:predict-graduation', studentId],
     {
       revalidate: 900,
-      tags: ['ai:recommend', `student:${studentId}`],
+      tags: ['ai:predict-graduation', `student:${studentId}`],
     },
   );
 }
@@ -292,6 +278,7 @@ function cachedRecommend(studentId: string) {
 // ---------- 3) Handler: auth & guard DI LUAR cache ----------
 export async function POST(req: NextRequest, context: { params: Promise<{ id: string }> }) {
   const { id: studentId } = await context.params;
+
   if (!studentId || !isUuidLike(studentId)) {
     return NextResponse.json({ error: 'Invalid student id' }, { status: 400 });
   }
@@ -299,7 +286,7 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
   const supabaseUser = await createSupabaseServerClient();
   const { data: { user }, error: userErr } = await supabaseUser.auth.getUser();
   if (userErr) return NextResponse.json({ error: userErr.message }, { status: 500 });
-  if (!user)   return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { data: profile, error: profErr } = await supabaseUser
     .from('profiles')
@@ -323,12 +310,10 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
   const useCache = new URL(req.url).searchParams.get('cache') !== '0';
 
   const result = useCache
-    ? await cachedRecommend(studentId)()
-    : await computeRecommendPure(studentId);
+    ? await cachedPredictGraduation(studentId)()
+    : await computePredictGraduationPure(studentId);
 
-  if (!useCache) {
-    revalidateTag(`student:${studentId}`);
-  }
+  if (!useCache) revalidateTag(`student:${studentId}`);
 
   return NextResponse.json(result.body, { status: result.status });
 }
