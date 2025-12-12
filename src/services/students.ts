@@ -6,6 +6,7 @@ import type {
   PrereqMap,
   AIRawResult,
   CoursesMapResponse,
+  AiPredictGraduationResponse,
 } from "@/models/types/students/risk";
 
 // ====== Types ======
@@ -78,17 +79,6 @@ export type AiRecommendationItem = {
   prerequisites?: Array<{ code: string; name: string }>;
 };
 
-export type AiPredictGraduationResponse = {
-  status: string;
-  color: string;
-  description: string;
-  stats: {
-    sks_needed: number;
-    semesters_left: number;
-    required_pace: number;
-    student_capacity: number;
-  };
-};
 
 // ====== API calls ======
 

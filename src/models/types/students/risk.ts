@@ -38,3 +38,15 @@ export type CoursesMapResponse = {
   meta: { name: string; note?: string };
   nodes: CourseMapNode[];
 };
+
+export type AiPredictGraduationResponse = {
+  status: string;
+  color: string;
+  description: string;
+  stats: {
+    sks_needed: number;
+    semesters_left: number;
+    required_pace: number;
+    student_capacity: number;
+  };
+};
