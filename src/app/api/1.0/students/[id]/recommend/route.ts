@@ -206,6 +206,7 @@ async function computeRecommendPure(studentId: string): Promise<ComputeResult> {
       .from('enrollments')
       .select('kelulusan, course:courses!inner(kode, mk_pilihan)') 
       .eq('student_id', studentId)
+      .eq('status', 'FINAL')
       .eq('kelulusan', 'Lulus');
     if (passedErr) return { status: 500, body: { error: passedErr.message } };
 
@@ -221,6 +222,24 @@ async function computeRecommendPure(studentId: string): Promise<ComputeResult> {
         uniqueCourses.set(kode, { kode, isPilihan });
       }
     });
+
+    const { data: failedRows, error: failedErr } = await db
+      .from('enrollments')
+      .select('kelulusan, status, course:courses!inner(kode, mk_pilihan)')
+      .eq('student_id', studentId)
+      .eq('status', 'FINAL')
+      .eq('kelulusan', 'Tidak Lulus');
+
+    if (failedErr) return { status: 500, body: { error: failedErr.message } };
+
+    const mk_pilihan_failed = Array.from(
+      new Set(
+        (failedRows ?? [])
+          .filter((r: any) => r?.course?.mk_pilihan === true)
+          .map((r: any) => (r?.course?.kode ?? '').toString().trim())
+          .filter((kode: string) => kode.length > 0)
+      )
+    );
 
     // Buat array final untuk dikirim ke AI
     const courses_passed_for_ai: string[] = [];
@@ -245,6 +264,7 @@ async function computeRecommendPure(studentId: string): Promise<ComputeResult> {
         current_semester,
         courses_passed_count: courses_passed_for_ai.length,
         courses_passed: courses_passed_for_ai, 
+        mk_pilihan_failed,
       });
     }
 
@@ -253,7 +273,8 @@ async function computeRecommendPure(studentId: string): Promise<ComputeResult> {
       headers: { 'content-type': 'application/json', accept: 'application/json' },
       body: JSON.stringify({ 
         current_semester, 
-        courses_passed: courses_passed_for_ai
+        courses_passed: courses_passed_for_ai,
+        mk_pilihan_failed
       }),
       timeoutMs: 15_000,
     });
