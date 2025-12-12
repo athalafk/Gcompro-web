@@ -199,7 +199,7 @@ async function computeRecommendPure(studentId: string): Promise<ComputeResult> {
       .maybeSingle();
     if (latestErr) return { status: 500, body: { error: latestErr.message } };
 
-    const current_semester = Number(latestSem?.semester_no ?? 1) || 1;
+    const current_semester = (Number(latestSem?.semester_no ?? 1) || 1) + 1;
 
     // 1. Ambil MK lulus unik, TERMASUK flag boolean 'mk_pilihan'
     const { data: passedRows, error: passedErr } = await db
