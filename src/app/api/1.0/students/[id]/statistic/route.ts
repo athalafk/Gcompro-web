@@ -10,7 +10,7 @@
  *         lalu memanggil RPC `fn_get_or_create_semester` untuk memperoleh `semester_id`.
  *       - Data diambil dari:
  *         - `semester_stats.ips` (IPS semester tersebut)
- *         - `cumulative_stats.gpa_cum` dan `cumulative_stats.sks_lulus`
+ *         - `cumulative_stats.ipk_cum` dan `cumulative_stats.sks_lulus`
  *       - Target SKS default: **144**.
  *       - Endpoint **memerlukan sesi Supabase**. Jika user **admin**, query dijalankan dengan admin client (bypass RLS).
  *     tags: [Students]
@@ -183,7 +183,7 @@
  *           type: number
  *           format: float
  *           nullable: true
- *           description: IPK kumulatif (dari `cumulative_stats.gpa_cum`).
+ *           description: IPK kumulatif (dari `cumulative_stats.ipk_cum`).
  *         total_sks:
  *           type: integer
  *           description: Target total SKS (default 144).
@@ -248,12 +248,12 @@ async function computeStats(studentId: string, semesterStr: string, supabaseUser
 
   const { data: cumu, error: cumErr } = await db
     .from('cumulative_stats')
-    .select('gpa_cum, sks_lulus')
+    .select('ipk_cum, sks_lulus')
     .eq('student_id', studentId)
     .maybeSingle();
   if (cumErr) throw new Error(cumErr.message);
 
-  const ipk = cumu?.gpa_cum == null ? null : Number(cumu.gpa_cum);
+  const ipk = cumu?.ipk_cum == null ? null : Number(cumu.ipk_cum);
   const sks_selesai = Number(cumu?.sks_lulus ?? 0);
   const total_sks = DEFAULT_TARGET_SKS;
   const sks_tersisa = Math.max(0, total_sks - sks_selesai);
