@@ -78,6 +78,18 @@ export type AiRecommendationItem = {
   prerequisites?: Array<{ code: string; name: string }>;
 };
 
+export type AiPredictGraduationResponse = {
+  status: string;
+  color: string;
+  description: string;
+  stats: {
+    sks_needed: number;
+    semesters_left: number;
+    required_pace: number;
+    student_capacity: number;
+  };
+};
+
 // ====== API calls ======
 
 // 1) Chart (GET)
@@ -273,6 +285,19 @@ export async function getRecommendations(
 ) {
   const res = await http.post<AiRecommendationItem[]>(
     joinApi(`/students/${id}/recommend`),
+    {},
+    { signal: opts.signal }
+  );
+  return res.data;
+}
+
+// ====== API call (POST) ======
+export async function getPredictGraduation(
+  id: string,
+  opts: { signal?: AbortSignal } = {}
+) {
+  const res = await http.post<AiPredictGraduationResponse>(
+    joinApi(`/students/${id}/predict-graduation`),
     {},
     { signal: opts.signal }
   );
