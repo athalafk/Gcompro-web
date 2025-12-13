@@ -21,6 +21,7 @@ export default function LoginView() {
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [showPwd, setShowPwd] = useState(false);
+  const [toggleAdmin, setToggleAdmin] = useState(false);
 
   const redirectTo = useMemo(() => sanitizeRedirect(search.get("redirect")), [search]);
 
@@ -63,6 +64,9 @@ export default function LoginView() {
     }
   }
 
+  const label = toggleAdmin ? "Username" : "NIM";
+  const placeholderNIM = toggleAdmin ? "Masukkan username Anda" : "Masukkan NIM Anda";
+
   return (
     <main className="w-screen h-screen flex items-center justify-center" style={{ backgroundColor: "#f3f8ff" }}>
       <div className="flex w-full h-full">
@@ -90,14 +94,14 @@ export default function LoginView() {
           <form onSubmit={handleSubmit} className="w-full space-y-5">
             <div>
               <label htmlFor="nim" className="block text-sm font-medium text-black ml-0.5 mb-2">
-                NIM
+                {label}
               </label>
               <input
                 id="nim"
                 className="w-full border border-gray-300 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-[#02325B] focus:border-transparent transition"
                 type="text"
                 name="nim"
-                placeholder="Masukkan NIM Anda"
+                placeholder={placeholderNIM}
                 required
                 autoFocus
                 inputMode="numeric"
@@ -122,6 +126,18 @@ export default function LoginView() {
                   required
                   autoComplete="current-password"
                 />
+              <div className="mt-2 text-right">
+                <button
+                    type="button"
+                    onClick={() => {
+                      setToggleAdmin(!toggleAdmin);
+                      setError(null);
+                    }}
+                    className="text-sm text-[#02325B] font-semibold hover:underline bg-transparent border-none p-0 cursor-pointer"
+                >
+                    {toggleAdmin ? "Login sebagai mahasiswa" : "Login sebagai user lain"}
+                </button>
+              </div>
                 <button
                   type="button"
                   onClick={() => setShowPwd((s) => !s)}

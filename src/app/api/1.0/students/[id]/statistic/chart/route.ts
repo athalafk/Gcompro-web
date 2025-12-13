@@ -260,22 +260,27 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
       .order("semester_no", { ascending: true });
     if (cumErr) return jsonPrivate({ error: cumErr.message }, 500);
 
-    const allSemNos = Array.from(
-      new Set([
-        ...(ipsRows ?? []).map((x: any) => Number(x.semester_no)),
-        ...(cumRows ?? []).map((x: any) => Number(x.semester_no)),
-      ])
-    ).sort((a, b) => a - b);
+    const ipsBySem = new Map<number, number | null>();
+    (ipsRows ?? []).forEach((r: any) => {
+      ipsBySem.set(Number(r.semester_no), r.ips ?? null);
+    });
 
-    const seriesIPS = allSemNos.map(
-      (no) => ipsRows?.find((x: any) => Number(x.semester_no) === no)?.ips ?? null
-    );
-    const seriesIPK = allSemNos.map(
-      (no) => cumRows?.find((x: any) => Number(x.semester_no) === no)?.ipk_cum ?? null
-    );
+    const ipkBySem = new Map<number, number | null>();
+    (cumRows ?? []).forEach((r: any) => {
+      ipkBySem.set(Number(r.semester_no), r.ipk_cum ?? null);
+    });
+
+    const semWithIPS = (ipsRows ?? [])
+      .filter((r: any) => r.ips !== null && r.ips !== undefined)
+      .map((r: any) => Number(r.semester_no))
+      .filter((n) => Number.isFinite(n))
+      .sort((a, b) => a - b);
+
+    const seriesIPS = semWithIPS.map((no) => ipsBySem.get(no) ?? null);
+    const seriesIPK = semWithIPS.map((no) => ipkBySem.get(no) ?? null);
 
     const line: LinePayload = {
-      categories: allSemNos,
+      categories: semWithIPS,
       series: [
         { name: "IPK", data: seriesIPK },
         { name: "IPS", data: seriesIPS },
