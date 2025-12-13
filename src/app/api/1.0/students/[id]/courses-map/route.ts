@@ -8,21 +8,16 @@
  *       di mana setiap node menyimpan langsung **prereq** dan **corereq** (bukan lagi via edges).
  *
  *       **Aturan Kelulusan per Node:**
- *       - `"Lulus"` → `enrollments.kelulusan = 'Lulus'` (atau lulus berdasar perbandingan `grade_index` vs `min_index`)
+ *       - `"Lulus"` → `enrollments.kelulusan = 'Lulus'`
  *       - `"Tidak Lulus"` → `enrollments.kelulusan = 'Tidak Lulus'`
- *       - `"Belum Lulus"` → belum pernah diambil/sedang diambil/tidak ada record enrollment
+ *       - `"Belum Lulus"` → belum pernah lulus/tidak ada record FINAL
  *
  *       **Placeholder MK Pilihan (Fixed Layout + Rename):**
  *       - Jumlah placeholder **tetap** per semester (mengikuti konfigurasi layout kurikulum).
- *       - Jika mahasiswa mengambil MK pilihan sebenarnya pada semester terkait, **kode & nama placeholder**
- *         diubah menjadi kode/nama MK sebenarnya (misal: kode **AZK7XYZ3**, nama **"Broadband Optical Network"**),
- *         dan status kelulusan mengikuti MK tersebut.
- *       - Jika belum ada MK pilihan yang diambil untuk slot tersebut, placeholder tetap
- *         bernama "Mata Kuliah Pilihan #n" dan berstatus `"Belum Lulus"`.
- *
- *       **Arah Relasi (hanya sebagai konsep, tidak dikembalikan lagi sebagai edges):**
- *       - `prereq`: daftar MK yang harus diambil/lulus **sebelum** MK target.
- *       - `corereq`: daftar MK yang **dapat/harus** diambil **bersamaan** dengan MK target.
+ *       - Course pilihan adalah course **real** (`courses.mk_pilihan=true`).
+ *       - Jika mahasiswa mengambil MK pilihan (FINAL), slot placeholder akan **di-rename** menjadi kode/nama MK real.
+ *       - Pengisian slot dilakukan **berurutan** mengikuti layout (mis: 4 slot semester 7 diisi dulu, baru 2 slot semester 8),
+ *         tidak mengikuti `enrollments.semester_no` (karena frontend layout fixed).
  *
  *       Endpoint **memerlukan sesi Supabase yang valid**.
  *       Jika user **admin**, dapat mengakses data lintas mahasiswa (bypass RLS).
@@ -107,7 +102,7 @@
  *               example: "Course Map"
  *             note:
  *               type: string
- *               example: "Kelulusan 3-status + MK Pilihan fixed layout (rename jika diambil)"
+ *               example: "Kelulusan 3-status + MK Pilihan fixed layout (slot berurutan)"
  *         nodes:
  *           type: array
  *           items:
@@ -189,15 +184,14 @@
  *           type: string
  */
 
-export const dynamic = "force-dynamic";
+export const dynamic = 'force-dynamic';
 
-import { type NextRequest } from "next/server";
-import { jsonPrivate, isUuidLike } from "@/utils/api";
-import { createSupabaseServerClient } from "@/utils/supabase/server";
-import { createAdminClient } from "@/lib/supabase";
+import { type NextRequest } from 'next/server';
+import { jsonPrivate, isUuidLike } from '@/utils/api';
+import { createSupabaseServerClient } from '@/utils/supabase/server';
+import { createAdminClient } from '@/lib/supabase';
 
-type Kelulusan = "Lulus" | "Tidak Lulus" | "Belum Lulus";
-
+type Kelulusan = 'Lulus' | 'Tidak Lulus' | 'Belum Lulus';
 type RequisiteItem = { code: string; name: string };
 
 type CourseNode = {
@@ -209,8 +203,8 @@ type CourseNode = {
   corereq: RequisiteItem[];
   kelulusan: Kelulusan;
   mk_pilihan?: boolean;
-  min_index?: "A" | "AB" | "B" | "BC" | "C" | "D" | "E";
-  attributes?: { kategori: "Wajib" | "Pilihan" };
+  min_index?: 'A' | 'AB' | 'B' | 'BC' | 'C' | 'D' | 'E';
+  attributes?: { kategori: 'Wajib' | 'Pilihan' };
 };
 
 type CoursesMapResponse = {
@@ -231,183 +225,183 @@ const GRADE_RANK: Record<string, number> = {
 };
 
 // === CONFIG: layout fixed untuk placeholder MK Pilihan ===
-const ELECTIVE_LAYOUT: Array<{
-  semester: number;
-  count: number;
-  sks?: number;
-}> = [
+const ELECTIVE_LAYOUT: Array<{ semester: number; count: number; sks?: number }> = [
   { semester: 7, count: 4, sks: 3 },
   { semester: 8, count: 2, sks: 3 },
 ];
 
-function passedByGrade(
-  grade: string | null | undefined,
-  minIndex: string | null | undefined
-) {
+function passedByGrade(grade: string | null | undefined, minIndex: string | null | undefined) {
   if (!grade || !minIndex) return false;
   const g = GRADE_RANK[String(grade).toUpperCase()] ?? -1;
   const m = GRADE_RANK[String(minIndex).toUpperCase()] ?? 99;
   return g >= m;
 }
 
-export async function GET(
-  req: NextRequest,
-  context: { params: Promise<{ id: string }> }
-) {
+const statusRank = (s: Kelulusan) => (s === 'Lulus' ? 3 : s === 'Tidak Lulus' ? 2 : 1);
+
+type CourseRow = {
+  id: string;
+  kode: string;
+  nama: string;
+  sks: number;
+  mk_pilihan: boolean;
+  min_index: string | null;
+  semester_no: number | null;
+};
+
+type EnrollmentRow = {
+  course_id: string | null;
+  grade_index: string | null;
+  kelulusan: string | null;
+};
+
+type CourseRelRow = { course_id: string | null; prereq_course_id?: string | null; coreq_course_id?: string | null };
+
+export async function GET(req: NextRequest, context: { params: Promise<{ id: string }> }) {
   const { id: studentId } = await context.params;
-  if (!studentId || !isUuidLike(studentId))
-    return jsonPrivate({ error: "Invalid student id" }, 400);
+  if (!studentId || !isUuidLike(studentId)) return jsonPrivate({ error: 'Invalid student id' }, 400);
 
   try {
     // auth + role
     const supabaseUser = await createSupabaseServerClient();
-    const {
-      data: { user },
-      error: userErr,
-    } = await supabaseUser.auth.getUser();
+    const { data: { user }, error: userErr } = await supabaseUser.auth.getUser();
     if (userErr) return jsonPrivate({ error: userErr.message }, 500);
-    if (!user) return jsonPrivate({ error: "Unauthorized" }, 401);
+    if (!user) return jsonPrivate({ error: 'Unauthorized' }, 401);
 
     const { data: profile, error: profErr } = await supabaseUser
-      .from("profiles")
-      .select("role, nim")
-      .eq("id", user.id)
+      .from('profiles')
+      .select('role, nim')
+      .eq('id', user.id)
       .single();
     if (profErr) return jsonPrivate({ error: profErr.message }, 500);
 
-    const isAdmin = profile?.role === "admin";
+    const isAdmin = profile?.role === 'admin';
     if (!isAdmin) {
       const { data: own, error: ownErr } = await supabaseUser
-        .from("students")
-        .select("id")
-        .eq("id", studentId)
-        .eq("nim", profile?.nim ?? "")
+        .from('students')
+        .select('id')
+        .eq('id', studentId)
+        .eq('nim', profile?.nim ?? '')
         .maybeSingle();
+
       if (ownErr) return jsonPrivate({ error: ownErr.message }, 500);
-      if (!own) return jsonPrivate({ error: "Forbidden" }, 403);
+      if (!own) return jsonPrivate({ error: 'Forbidden' }, 403);
     }
 
     const db = isAdmin ? createAdminClient() : supabaseUser;
 
     // courses
-    const { data: courses, error: cErr } = await db
-      .from("courses")
-      .select("id, kode, nama, sks, mk_pilihan, min_index, semester_no")
-      .order("semester_no", { ascending: true, nullsFirst: true })
-      .order("kode", { ascending: true });
+    const { data: coursesRaw, error: cErr } = await db
+      .from('courses')
+      .select('id, kode, nama, sks, mk_pilihan, min_index, semester_no')
+      .order('semester_no', { ascending: true, nullsFirst: true })
+      .order('kode', { ascending: true });
     if (cErr) return jsonPrivate({ error: cErr.message }, 500);
 
-    // peta id<->course + trim min_index dari CHAR(2)
-    type CourseRow = {
-      id: string;
-      kode: string;
-      nama: string;
-      sks: number;
-      mk_pilihan: boolean;
-      min_index: string | null;
-      semester_no: number | null;
-    };
+    const courses = (coursesRaw ?? []) as CourseRow[];
 
+    // peta id<->course + trim min_index dari CHAR(2)
     const idToCourse = new Map<string, CourseRow>();
-    const codeToCourse = new Map<string, CourseRow>(); // uppercased code
-    for (const c of (courses ?? []) as CourseRow[]) {
-      if (typeof c.min_index === "string")
-        c.min_index = c.min_index.trim() as any;
+    for (const c of courses) {
+      if (typeof c.min_index === 'string') c.min_index = c.min_index.trim();
       idToCourse.set(c.id, c);
-      codeToCourse.set(String(c.kode).toUpperCase(), c);
     }
 
-    // enrollments
-    const { data: enr, error: eErr } = await db
-      .from("enrollments")
-      .select("course_id, grade_index, kelulusan, semester_no")
-      .eq("student_id", studentId);
+    // enrollments (FINAL only -> status kelulusan)
+    const { data: enrRaw, error: eErr } = await db
+      .from('enrollments')
+      .select('course_id, grade_index, kelulusan')
+      .eq('student_id', studentId)
+      .eq('status', 'FINAL');
     if (eErr) return jsonPrivate({ error: eErr.message }, 500);
+
+    const enr = (enrRaw ?? []) as EnrollmentRow[];
 
     // status & best grade (untuk node reguler)
     const statusByCourseId = new Map<string, Kelulusan>();
     const bestGradeByCourseId = new Map<string, string>();
-    for (const row of enr ?? []) {
-      const cid = row.course_id as string | null;
+
+    for (const row of enr) {
+      const cid = row.course_id;
       if (!cid) continue;
 
       const k = row.kelulusan as Kelulusan | null;
-      if (k === "Lulus" || k === "Tidak Lulus" || k === "Belum Lulus") {
-        statusByCourseId.set(cid, k);
+      if (k === 'Lulus' || k === 'Tidak Lulus' || k === 'Belum Lulus') {
+        const prev = statusByCourseId.get(cid);
+        if (!prev || statusRank(k) > statusRank(prev)) statusByCourseId.set(cid, k);
       }
-      const g = row.grade_index as string | null;
+
+      const g = row.grade_index;
       if (g) {
         const up = g.toUpperCase();
         const prev = bestGradeByCourseId.get(cid);
-        if (!prev || GRADE_RANK[up] > (GRADE_RANK[prev] ?? -1))
-          bestGradeByCourseId.set(cid, up);
+        if (!prev || (GRADE_RANK[up] ?? -1) > (GRADE_RANK[prev] ?? -1)) bestGradeByCourseId.set(cid, up);
       }
     }
 
     // ambil relasi prereq & coreq
     const { data: prereqRaw, error: prErr } = await db
-      .from("course_prereq")
-      .select("course_id, prereq_course_id");
+      .from('course_prereq')
+      .select('course_id, prereq_course_id');
     if (prErr) return jsonPrivate({ error: prErr.message }, 500);
 
     const coreqRes = await db
-      .from("course_coreq")
-      .select("course_id, coreq_course_id");
+      .from('course_coreq')
+      .select('course_id, coreq_course_id');
     const coreqRaw = coreqRes.error ? [] : coreqRes.data ?? [];
 
-    // build map: KODE TARGET (upper) -> RequisiteItem[]
     const prereqMap = new Map<string, RequisiteItem[]>();
-    for (const r of prereqRaw ?? []) {
-      const target = idToCourse.get(r.course_id!);
-      const pre = idToCourse.get(r.prereq_course_id!);
-      if (!target || !pre) continue;
-      // hanya tampilkan prasyarat reguler (bukan mk_pilihan)
-      if (pre.mk_pilihan) continue;
+    for (const r of (prereqRaw ?? []) as CourseRelRow[]) {
+      const targetId = r.course_id ?? null;
+      const preId = r.prereq_course_id ?? null;
+      if (!targetId || !preId) continue;
 
-      const key = String(target.kode).toUpperCase();
+      const target = idToCourse.get(targetId);
+      const pre = idToCourse.get(preId);
+      if (!target || !pre) continue;
+      if (pre.mk_pilihan) continue; // hanya tampilkan prasyarat reguler
+
+      const key = target.kode.toUpperCase();
       const list = prereqMap.get(key) ?? [];
       list.push({ code: pre.kode, name: pre.nama });
       prereqMap.set(key, list);
     }
 
     const coreqMap = new Map<string, RequisiteItem[]>();
-    for (const r of coreqRaw as Array<{
-      course_id: string;
-      coreq_course_id: string;
-    }>) {
-      const target = idToCourse.get(r.course_id!);
-      const co = idToCourse.get(r.coreq_course_id!);
-      if (!target || !co) continue;
-      // hanya tampilkan coreq reguler (bukan mk_pilihan)
-      if (co.mk_pilihan) continue;
+    for (const r of (coreqRaw ?? []) as CourseRelRow[]) {
+      const targetId = r.course_id ?? null;
+      const coId = r.coreq_course_id ?? null;
+      if (!targetId || !coId) continue;
 
-      const key = String(target.kode).toUpperCase();
+      const target = idToCourse.get(targetId);
+      const co = idToCourse.get(coId);
+      if (!target || !co) continue;
+      if (co.mk_pilihan) continue; // hanya tampilkan coreq reguler
+
+      const key = target.kode.toUpperCase();
       const list = coreqMap.get(key) ?? [];
       list.push({ code: co.kode, name: co.nama });
       coreqMap.set(key, list);
     }
 
-    // nodes reguler
-    const regularNodes: CourseNode[] = (courses ?? [])
+    // nodes reguler (Wajib = bukan mk_pilihan)
+    const regularNodes: CourseNode[] = courses
       .filter((c) => !c.mk_pilihan)
       .map((c) => {
-        const cid = c.id as string;
-        const minI = (c.min_index ?? "D") as CourseNode["min_index"];
+        const cid = c.id;
+        const minI = (c.min_index ?? 'D') as CourseNode['min_index'];
 
+        // status: prefer kelulusan FINAL; fallback by grade vs min_index (safety)
         let status = statusByCourseId.get(cid);
         if (!status) {
-          status = "Belum Lulus";
+          status = 'Belum Lulus';
           const best = bestGradeByCourseId.get(cid) ?? null;
-          if (passedByGrade(best, minI)) status = "Lulus";
+          if (passedByGrade(best, minI)) status = 'Lulus';
         }
 
-        const key = String(c.kode).toUpperCase();
-        const prereq = (prereqMap.get(key) ?? [])
-          .slice()
-          .sort((a, b) => a.name.localeCompare(b.name));
-        const corereq = (coreqMap.get(key) ?? [])
-          .slice()
-          .sort((a, b) => a.name.localeCompare(b.name));
+        const key = c.kode.toUpperCase();
+        const prereq = (prereqMap.get(key) ?? []).slice().sort((a, b) => a.name.localeCompare(b.name));
+        const corereq = (coreqMap.get(key) ?? []).slice().sort((a, b) => a.name.localeCompare(b.name));
 
         return {
           code: c.kode,
@@ -419,69 +413,46 @@ export async function GET(
           kelulusan: status,
           mk_pilihan: false,
           min_index: minI,
-          attributes: { kategori: "Wajib" },
+          attributes: { kategori: 'Wajib' },
         };
       });
 
-    // ==== Kumpulkan MK pilihan per semester (prefer enrollments.semester_no) ====
-    const takenElectivesBySem: Map<
-      number,
-      Array<{ code: string; name: string; status: Kelulusan }>
-    > = new Map();
+    // ==== MK pilihan yang diambil (course real) -> isi slot berurutan mengikuti layout (fixed) ====
+    // Kumpulkan electives unik + status terbaik
+    const takenElectives = new Map<string, { code: string; name: string; status: Kelulusan }>();
 
-    const rank = (s: Kelulusan) =>
-      s === "Lulus" ? 3 : s === "Tidak Lulus" ? 2 : 1;
-
-    for (const row of enr ?? []) {
-      const cid = row.course_id as string | null;
+    for (const row of enr) {
+      const cid = row.course_id;
       if (!cid) continue;
 
       const course = idToCourse.get(cid);
       if (!course || !course.mk_pilihan) continue;
 
-      const enrSem = row.semester_no != null ? Number(row.semester_no) : null;
-      const courseSem =
-        course.semester_no != null ? Number(course.semester_no) : null;
+      const status = (row.kelulusan as Kelulusan) || 'Belum Lulus';
+      const key = course.kode.toUpperCase();
 
-      const preferSem =
-        enrSem != null
-          ? enrSem
-          : courseSem != null
-          ? courseSem
-          : ELECTIVE_LAYOUT[0]?.semester ?? 7;
-
-      const status = (row.kelulusan as Kelulusan) || "Belum Lulus";
-
-      const list = takenElectivesBySem.get(preferSem) ?? [];
-      const idx = list.findIndex((x) => x.code === course.kode);
-      if (idx >= 0) {
-        if (rank(status) > rank(list[idx].status)) list[idx].status = status;
-      } else {
-        list.push({ code: course.kode, name: course.nama, status });
+      const prev = takenElectives.get(key);
+      if (!prev || statusRank(status) > statusRank(prev.status)) {
+        takenElectives.set(key, { code: course.kode, name: course.nama, status });
       }
-      takenElectivesBySem.set(preferSem, list);
     }
 
-    for (const [sem, list] of takenElectivesBySem.entries()) {
-      list.sort((a, b) => a.name.localeCompare(b.name));
-      takenElectivesBySem.set(sem, list);
-    }
+    const takenElectivesList = Array.from(takenElectives.values())
+      .sort((a, b) => a.name.localeCompare(b.name));
 
-    // ==== Placeholder MK Pilihan (fixed layout + rename jika ada data riil) ====
+    // Placeholder nodes fixed + rename by taken list
     let runningIdx = 1;
+    let takenIdx = 0;
     const electiveNodes: CourseNode[] = [];
 
     for (const { semester, count, sks = 3 } of ELECTIVE_LAYOUT) {
-      const taken = takenElectivesBySem.get(semester) ?? [];
-
       for (let i = 1; i <= count; i++, runningIdx++) {
-        const takenItem = taken[i - 1];
+        const takenItem = takenElectivesList[takenIdx];
+        if (takenItem) takenIdx++;
 
         const code = takenItem ? takenItem.code : `MK_PILIHAN${runningIdx}`;
-        const name = takenItem
-          ? takenItem.name
-          : `Mata Kuliah Pilihan #${runningIdx}`;
-        const status: Kelulusan = takenItem ? takenItem.status : "Belum Lulus";
+        const name = takenItem ? takenItem.name : `Mata Kuliah Pilihan #${runningIdx}`;
+        const status: Kelulusan = takenItem ? takenItem.status : 'Belum Lulus';
 
         electiveNodes.push({
           code,
@@ -492,23 +463,24 @@ export async function GET(
           corereq: [],
           kelulusan: status,
           mk_pilihan: true,
-          attributes: { kategori: "Pilihan" },
+          attributes: { kategori: 'Pilihan' },
         });
       }
     }
 
     const payload: CoursesMapResponse = {
-      curriculum_id: "KUR-FTE",
+      curriculum_id: 'KUR-FTE',
       version: 1,
       meta: {
-        name: "Course Map",
-        note: "Kelulusan 3-status + MK Pilihan fixed layout (rename jika diambil)",
+        name: 'Course Map',
+        note: 'Kelulusan 3-status + MK Pilihan fixed layout (slot berurutan)',
       },
       nodes: [...regularNodes, ...electiveNodes],
     };
 
     return jsonPrivate(payload, 200);
-  } catch (e: any) {
-    return jsonPrivate({ error: e?.message ?? "Internal Server Error" }, 500);
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : 'Internal Server Error';
+    return jsonPrivate({ error: msg }, 500);
   }
 }

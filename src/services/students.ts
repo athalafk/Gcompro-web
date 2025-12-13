@@ -182,31 +182,32 @@ export async function getCourseMap(id: string, signal?: AbortSignal) {
   return res.data;
 }
 
-// 6) Analyze risk (POST)
+// 6) Analyze risk
 export async function analyzeRisk(
   id: string,
-  opts: { debug?: boolean; signal?: AbortSignal } = {}
+  opts: { cache?: boolean; signal?: AbortSignal } = {}
 ) {
-  const { debug, signal } = opts;
-  const url = joinApi(`/students/${id}/analyze`) + (debug ? "?debug=1" : "");
-  const res = await http.post<AnalyzeResponse>(
-    url,
-    {},
-    {
-      signal,
-      headers: {
-        Accept: "application/json",
-        ...(debug ? { "x-debug": "1" } : {}),
-      },
-    }
-  );
-  const json: any = res.data;
+  const { cache = true, signal } = opts;
+
+  const url =
+    joinApi(`/students/${id}/analyze`) +
+    (cache ? "" : "?cache=0");
+
+  const res = await http.get<AnalyzeResponse>(url, {
+    signal,
+    headers: {
+      Accept: "application/json",
+    },
+  });
+
+  const json = res.data as any;
   return {
-    feat: json?.feat ?? ({} as Features),
-    ai: json?.ai ?? ({ prediction: "" } as AIRawResult),
+    feat: (json?.feat ?? {}) as Features,
+    ai: (json?.ai ?? { prediction: "" }) as AIRawResult,
     meta: (json?.meta ?? null) as RiskMeta,
   };
 }
+
 
 // 7) Latest risk (GET)
 export async function getLatestRisk(
@@ -271,25 +272,28 @@ export async function listStudents(
 
 export async function getRecommendations(
   id: string,
-  opts: { signal?: AbortSignal } = {}
+  opts: { cache?: boolean; signal?: AbortSignal } = {}
 ) {
-  const res = await http.post<AiRecommendationItem[]>(
-    joinApi(`/students/${id}/recommend`),
-    {},
-    { signal: opts.signal }
-  );
+  const { cache = true, signal } = opts;
+
+  const url =
+    joinApi(`/students/${id}/recommend`) + (cache ? "" : "?cache=0");
+
+  const res = await http.get<AiRecommendationItem[]>(url, { signal });
   return res.data;
 }
 
 // ====== API call (POST) ======
 export async function getPredictGraduation(
   id: string,
-  opts: { signal?: AbortSignal } = {}
+  opts: { cache?: boolean; signal?: AbortSignal } = {}
 ) {
-  const res = await http.post<AiPredictGraduationResponse>(
-    joinApi(`/students/${id}/predict-graduation`),
-    {},
-    { signal: opts.signal }
-  );
+  const { cache = true, signal } = opts;
+
+  const url =
+    joinApi(`/students/${id}/predict-graduation`) + (cache ? "" : "?cache=0");
+
+  const res = await http.get<AiPredictGraduationResponse>(url, { signal });
   return res.data;
 }
+

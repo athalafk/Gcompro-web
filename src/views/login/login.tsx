@@ -66,6 +66,7 @@ export default function LoginView() {
 
   const label = toggleAdmin ? "Username" : "NIM";
   const placeholderNIM = toggleAdmin ? "Masukkan username Anda" : "Masukkan NIM Anda";
+  const inputMode = toggleAdmin ? "text" : "numeric";
 
   return (
     <main className="w-screen h-screen flex items-center justify-center" style={{ backgroundColor: "#f3f8ff" }}>
@@ -104,7 +105,7 @@ export default function LoginView() {
                 placeholder={placeholderNIM}
                 required
                 autoFocus
-                inputMode="numeric"
+                inputMode={inputMode}
                 autoComplete="username"
               />
             </div>
@@ -126,18 +127,6 @@ export default function LoginView() {
                   required
                   autoComplete="current-password"
                 />
-              <div className="mt-2 text-right">
-                <button
-                    type="button"
-                    onClick={() => {
-                      setToggleAdmin(!toggleAdmin);
-                      setError(null);
-                    }}
-                    className="text-sm text-[#02325B] font-semibold hover:underline bg-transparent border-none p-0 cursor-pointer"
-                >
-                    {toggleAdmin ? "Login sebagai mahasiswa" : "Login sebagai user lain"}
-                </button>
-              </div>
                 <button
                   type="button"
                   onClick={() => setShowPwd((s) => !s)}
@@ -147,12 +136,34 @@ export default function LoginView() {
                   {showPwd ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
                 </button>
               </div>
+
+              <div className="flex items-start justify-between mt-2 gap-2">
+                
+                <div className="w-1/2">
+                  {error && (
+                    <p className="text-sm text-red-600 leading-tight text-left">
+                      {error}
+                    </p>
+                  )}
+                </div>
+
+                <div className="w-1/2 text-right">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setToggleAdmin(!toggleAdmin);
+                      setError(null);
+                    }}
+                    className="text-sm text-[#02325B] font-semibold hover:underline bg-transparent border-none p-0 cursor-pointer"
+                  >
+                    {toggleAdmin ? "Login sebagai mahasiswa" : "Login sebagai user lain"}
+                  </button>
+                </div>
+
+              </div>
             </div>
-
-            {error && <p className="text-sm text-red-600 pt-1">{error}</p>}
-
             <button
-              className="w-full rounded-md bg-[#02325B] mt-5 text-white py-3 font-semibold disabled:opacity-60 hover:bg-[#02325B] transition duration-200 ease-in-out cursor-pointer"
+              className="w-full rounded-md bg-[#02325B] mt-2 text-white py-3 font-semibold disabled:opacity-60 hover:bg-[#02325B] transition duration-200 ease-in-out cursor-pointer"
               type="submit"
               disabled={pending}
             >

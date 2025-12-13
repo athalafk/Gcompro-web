@@ -7,7 +7,7 @@
  *       **Hanya admin** (ditentukan dari `profiles.role = "admin"`).  
  *       Autentikasi via Bearer JWT (Supabase) — atau session cookie yang
  *       dikonversi middleware ke header Authorization di server.
- *     tags: [Admin]
+ *     tags: [debug]
  *     security:
  *       - bearerAuth: []
  *     requestBody:

@@ -7,7 +7,7 @@
  *       Mengembalikan graph prasyarat:
  *       - **nodes**: setiap mata kuliah dengan status kelulusan mahasiswa (passed/failed/current/none)
  *       - **links**: edge dari mata kuliah prasyarat (**source**) ke mata kuliah target (**target**)
- *     tags: [Students]
+ *     tags: [deprecated]
  *     parameters:
  *       - in: path
  *         name: id

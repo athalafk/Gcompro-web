@@ -3,7 +3,7 @@
  * /auth/callback:
  *   get:
  *     summary: Supabase Auth callback handler for email or OAuth flows.
- *     tags: [Auth]
+ *     tags: [deprecated]
  *     parameters:
  *       - in: query
  *         name: code

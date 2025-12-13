@@ -6,7 +6,7 @@
  *     description: >
  *       **Hanya admin**. Bisa menarget user berdasarkan `userId` **atau** `email`.
  *       Jika `newPassword` tidak dikirim, default ke **"123456"**.
- *     tags: [Admin]
+ *     tags: [debug]
  *     security:
  *       - bearerAuth: []
  *     requestBody:

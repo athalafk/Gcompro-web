@@ -11,7 +11,7 @@
  *       **Auth:** wajib menyertakan header `x-worker-token`.
  *
  *       **Dry-run:** tambahkan query `?dry=1` untuk hanya melihat antrian (tanpa eksekusi).
- *     tags: [Worker]
+ *     tags: [worker]
  *     operationId: runAiWorker
  *     parameters:
  *       - in: header
@@ -309,11 +309,11 @@ export async function POST(req: NextRequest) {
             student_id: studentId,
             semester_id: semesterIdForSave,
 
-            gpa_cum: feat.IPK_Terakhir,
-            ips_last: feat.IPS_Terakhir,
+            gpa_cum: feat.feat.IPK_Terakhir,
+            ips_last: feat.feat.IPS_Terakhir,
             delta_ips: deltaIps,
-            mk_gagal_total: feat.Jumlah_MK_Gagal,
-            sks_tunda: feat.Total_SKS_Gagal,
+            mk_gagal_total: feat.feat.Jumlah_MK_Gagal,
+            sks_tunda: feat.feat.Total_SKS_Gagal,
 
             pct_d: 0,
             pct_e: 0,

@@ -26,7 +26,7 @@
  *
  *       Endpoint **memerlukan sesi Supabase yang valid**.
  *       Jika user **admin**, dapat mengakses data lintas mahasiswa (bypass RLS).
- *     tags: [Students]
+ *     tags: [deprecated]
  *     operationId: getStudentCoursesMap
  *     security:
  *       - bearerAuth: []

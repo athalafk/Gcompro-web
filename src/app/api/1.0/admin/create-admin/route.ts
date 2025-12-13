@@ -3,7 +3,7 @@
  * /admin/bootstrap:
  *   post:
  *     tags:
- *       - Admin
+ *       - debug
  *     summary: Bootstrap akun ADMIN (idempotent)
  *     description: >
  *       Membuat (atau memastikan keberadaan) user **ADMIN** di Supabase dan

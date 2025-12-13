@@ -3,7 +3,7 @@
  * /upload/grades:
  *   post:
  *     summary: Upload grades.csv lalu upsert ke tabel enrollments
- *     tags: [Upload]
+ *     tags: [deprecated]
  *     requestBody:
  *       required: true
  *       content:

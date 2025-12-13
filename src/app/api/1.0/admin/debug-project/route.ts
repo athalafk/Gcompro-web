@@ -7,7 +7,7 @@
  *       **Wajib login sebagai admin**. Mengembalikan info dasar URL/keys yang
  *       termuat di runtime (dengan masking) serta uji panggilan Admin API `listUsers`.
  *       **Jangan expose di production** tanpa pembatasan akses.
- *     tags: [Debug]
+ *     tags: [debug]
  *     security:
  *       - bearerAuth: []
  *     responses:

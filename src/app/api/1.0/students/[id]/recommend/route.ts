@@ -4,19 +4,25 @@
  *   post:
  *     summary: Ambil rekomendasi mata kuliah dari AI untuk mahasiswa tertentu
  *     description: |
- *       Endpoint ini menyiapkan payload untuk layanan AI berdasarkan data mahasiswa,
+ *       Endpoint ini menyiapkan payload untuk layanan AI berdasarkan data akademik mahasiswa,
  *       lalu **meneruskan** (proxy) respons rekomendasi dari AI ke frontend.
  *
  *       Payload yang dikirim ke AI:
- *       - `current_semester` (integer): semester terakhir/terkini yang terdeteksi dari enrollments mahasiswa.
- *       - `courses_passed` (array<string>): daftar **kode** mata kuliah yang berstatus *Lulus*.
+ *       - `current_semester` (integer): semester terkini untuk AI, dihitung oleh function database
+ *         `public.get_student_current_semester_for_ai(p_student_id)` (active semester + cek FINAL).
+ *       - `courses_passed` (array<string>): daftar **kode** mata kuliah yang berstatus **Lulus**,
+ *         unik, dari `enrollments` dengan `status='FINAL'` dan `kelulusan='Lulus'`.
+ *         Untuk mata kuliah pilihan (courses.mk_pilihan=true), kodenya **dinormalisasi** menjadi:
+ *         `MK_PILIHAN1`, `MK_PILIHAN2`, dst sesuai jumlah MK pilihan yang lulus.
+ *       - `mk_pilihan_failed` (array<string>): daftar kode MK pilihan yang **Tidak Lulus** (FINAL),
+ *         unik. (Tetap dikirim sesuai kontrak AI yang kamu pakai sekarang.)
  *
  *       Catatan:
  *       - Endpoint **memerlukan sesi Supabase**.
  *       - Jika user **admin**, query dijalankan dengan service-role (bypass RLS).
  *       - Jika user **student**, hanya dapat mengakses rekomendasi dirinya sendiri.
- *       - Tambahkan query `?cache=0` untuk memaksa hitung ulang (bypass cache).
- *       - Tidak membutuhkan request body; `id` di path digunakan untuk membangun payload.
+ *       - Tambahkan query `?cache=0` untuk memaksa hitung ulang (bypass cache) dan invalidasi tag `student:{id}`.
+ *       - Tidak membutuhkan request body.
  *     tags: [Students, AI]
  *     operationId: getStudentCourseRecommendations
  *     parameters:
@@ -44,66 +50,90 @@
  *               type: array
  *               items:
  *                 $ref: '#/components/schemas/AiRecommendationItem'
- *             examples:
- *               sample:
- *                 summary: Contoh hasil rekomendasi
- *                 value:
- *                   - rank: 1
- *                     code: "AAK3BAB3"
- *                     name: "Sistem Komunikasi 1"
- *                     sks: 3
- *                     semester_plan: 5
- *                     reason: "Rekomendasi semester ini"
- *                     priority_score: 0.6
- *                     is_tertinggal: false
- *                     prerequisites:
- *                       - { code: "AZK2AAB3", name: "Probabilitas dan Statistika" }
- *                       - { code: "AZK2GAB3", name: "Pengolahan Sinyal Waktu Kontinyu" }
  *       400:
  *         description: Parameter path tidak valid (ID bukan UUID).
  *         content:
  *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- *             examples:
- *               invalid_id:
- *                 value: { error: "Invalid student id" }
+ *             schema: { $ref: '#/components/schemas/ErrorResponse' }
  *       401:
  *         description: Unauthorized (tidak ada sesi Supabase).
  *         content:
  *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- *             examples:
- *               no_session:
- *                 value: { error: "Unauthorized" }
+ *             schema: { $ref: '#/components/schemas/ErrorResponse' }
  *       403:
  *         description: Forbidden (student mencoba mengakses data milik mahasiswa lain).
  *         content:
  *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- *             examples:
- *               forbidden:
- *                 value: { error: "Forbidden" }
+ *             schema: { $ref: '#/components/schemas/ErrorResponse' }
  *       502:
  *         description: Bad Gateway — gagal memanggil AI service atau respons tidak valid.
  *         content:
  *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- *             examples:
- *               ai_down:
- *                 value: { error: "AI service returned non-array payload" }
+ *             schema: { $ref: '#/components/schemas/ErrorResponse' }
  *       500:
  *         description: Kesalahan server (gagal query Supabase atau AI_BASE_URL tidak diset).
  *         content:
  *           application/json:
+ *             schema: { $ref: '#/components/schemas/ErrorResponse' }
+ *
+ *   get:
+ *     summary: (Mirror) Ambil rekomendasi mata kuliah via querystring (private cache)
+ *     description: |
+ *       Versi **GET** dari endpoint yang sama.
+ *       - Response sama seperti POST.
+ *       - Gunakan `?cache=0` untuk force recompute.
+ *     tags: [Students, AI]
+ *     operationId: getStudentCourseRecommendationsViaQuery
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         description: UUID mahasiswa (kolom `students.id`)
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *       - in: query
+ *         name: cache
+ *         required: false
+ *         description: "Kontrol cache: '0' untuk menonaktifkan cache; omit atau nilai lain untuk menggunakan cache."
+ *         schema:
+ *           type: string
+ *           enum: ["0", "1"]
+ *           default: "1"
+ *     responses:
+ *       200:
+ *         description: OK
+ *         content:
+ *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- *             examples:
- *               server_error:
- *                 value: { error: "AI_BASE_URL is not configured" }
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/AiRecommendationItem'
+ *       400:
+ *         description: Parameter path tidak valid.
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/ErrorResponse' }
+ *       401:
+ *         description: Unauthorized.
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/ErrorResponse' }
+ *       403:
+ *         description: Forbidden.
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/ErrorResponse' }
+ *       502:
+ *         description: Bad Gateway.
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/ErrorResponse' }
+ *       500:
+ *         description: Server error.
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/ErrorResponse' }
  *
  * components:
  *   schemas:
@@ -111,57 +141,36 @@
  *       type: object
  *       additionalProperties: false
  *       properties:
- *         rank:
- *           type: integer
- *           example: 1
- *         code:
- *           type: string
- *           example: "AAK3BAB3"
- *         name:
- *           type: string
- *           example: "Sistem Komunikasi 1"
- *         sks:
- *           type: integer
- *           example: 3
- *         semester_plan:
- *           type: integer
- *           example: 5
- *         reason:
- *           type: string
- *           example: "Rekomendasi semester ini"
- *         is_tertinggal:
- *           type: boolean
- *           description: Menunjukkan apakah mata kuliah ini termasuk yang tertinggal dari semester sebelumnya.
- *           example: false
- *         priority_score:
- *           type: number
- *           example: 0.6
+ *         rank: { type: integer, example: 1 }
+ *         code: { type: string, example: "AAK3BAB3" }
+ *         name: { type: string, example: "Sistem Komunikasi 1" }
+ *         sks: { type: integer, example: 3 }
+ *         semester_plan: { type: integer, example: 5 }
+ *         reason: { type: string, example: "Rekomendasi semester ini" }
+ *         is_tertinggal: { type: boolean, example: false }
+ *         priority_score: { type: number, example: 0.6 }
  *         prerequisites:
  *           type: array
  *           items:
  *             type: object
+ *             additionalProperties: false
  *             properties:
- *               code:
- *                 type: string
- *                 example: "AZK2AAB3"
- *               name:
- *                 type: string
- *                 example: "Probabilitas dan Statistika"
+ *               code: { type: string, example: "AZK2AAB3" }
+ *               name: { type: string, example: "Probabilitas dan Statistika" }
+ *       required: [rank, code, name, sks, semester_plan, reason, is_tertinggal, priority_score]
  *
  *     ErrorResponse:
  *       type: object
  *       additionalProperties: false
  *       properties:
- *         error:
- *           type: string
+ *         error: { type: string }
  *       required: [error]
  */
-
 
 export const dynamic = 'force-dynamic';
 
 import { type NextRequest, NextResponse } from 'next/server';
-import { joinUrl, fetchWithTimeout, isUuidLike } from '@/utils/api';
+import { joinUrl, fetchWithTimeout, isUuidLike, jsonPrivate, jsonNoStore } from '@/utils/api';
 import { createSupabaseServerClient } from '@/utils/supabase/server';
 import { createAdminClient } from '@/lib/supabase';
 import { unstable_cache, revalidateTag } from '@/utils/cache';
@@ -182,109 +191,115 @@ type ComputeResult =
   | { status: 200; body: AiRecommendationItem[] }
   | { status: number; body: { error: string } };
 
+// ---- DB row typings (no any) ----
+type PassedRow = {
+  course: { kode: string | null; mk_pilihan: boolean | null } | null;
+};
+type FailedRow = {
+  course: { kode: string | null; mk_pilihan: boolean | null } | null;
+};
+
 // ---------- 1) PURE compute ----------
 async function computeRecommendPure(studentId: string): Promise<ComputeResult> {
-  const showDebugConsole =
-    process.env.NEXT_PUBLIC_DEBUG_CONSOLE === '1';
+  const showDebugConsole = process.env.NEXT_PUBLIC_DEBUG_CONSOLE === '1';
+
   try {
     const db = createAdminClient();
 
-    // Ambil semester terakhir
-    const { data: latestSem, error: latestErr } = await db
-      .from('enrollments')
-      .select('semester_no')
-      .eq('student_id', studentId)
-      .order('semester_no', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    if (latestErr) return { status: 500, body: { error: latestErr.message } };
+    // A) current_semester: source of truth via function DB
+    const { data: currentSem, error: curErr } = await db.rpc(
+      'get_student_current_semester_for_ai',
+      { p_student_id: studentId },
+    );
+    if (curErr) return { status: 500, body: { error: curErr.message } };
 
-    const current_semester = (Number(latestSem?.semester_no ?? 1) || 1) + 1;
+    const current_semester = Number(currentSem ?? 1) || 1;
 
-    // 1. Ambil MK lulus unik, TERMASUK flag boolean 'mk_pilihan'
+    // B) MK lulus unik (FINAL & Lulus)
     const { data: passedRows, error: passedErr } = await db
       .from('enrollments')
-      .select('kelulusan, course:courses!inner(kode, mk_pilihan)') 
+      .select('course:courses!inner(kode, mk_pilihan)')
       .eq('student_id', studentId)
       .eq('status', 'FINAL')
-      .eq('kelulusan', 'Lulus');
+      .eq('kelulusan', 'Lulus')
+      .returns<PassedRow[]>();
+
     if (passedErr) return { status: 500, body: { error: passedErr.message } };
 
-    // 2. Proses untuk mendapatkan daftar kode MK unik DAN mengganti MK Pilihan
-    
-    const uniqueCourses = new Map<string, { kode: string, isPilihan: boolean }>();
-    
-    (passedRows ?? []).forEach((r: any) => {
-      const kode = (r?.course?.kode ?? '').toString().trim();
-      const isPilihan = r?.course?.mk_pilihan === true; 
-      
-      if (kode.length > 0 && !uniqueCourses.has(kode)) {
-        uniqueCourses.set(kode, { kode, isPilihan });
-      }
-    });
-
+    // C) MK pilihan yang tidak lulus (FINAL & Tidak Lulus) — tetap dikirim ke AI
     const { data: failedRows, error: failedErr } = await db
       .from('enrollments')
-      .select('kelulusan, status, course:courses!inner(kode, mk_pilihan)')
+      .select('course:courses!inner(kode, mk_pilihan)')
       .eq('student_id', studentId)
       .eq('status', 'FINAL')
-      .eq('kelulusan', 'Tidak Lulus');
+      .eq('kelulusan', 'Tidak Lulus')
+      .returns<FailedRow[]>();
 
     if (failedErr) return { status: 500, body: { error: failedErr.message } };
 
+    // ---- Normalisasi courses_passed untuk AI ----
+    // - Regular: pakai kode asli (trim)
+    // - Elective (mk_pilihan=true): ganti jadi MK_PILIHAN1..n sesuai jumlah elective yang lulus
+    const passedRegularCodes = new Set<string>();
+    const passedElectiveCodes: string[] = [];
+
+    for (const r of passedRows ?? []) {
+      const kode = String(r?.course?.kode ?? '').trim();
+      if (!kode) continue;
+
+      const isPilihan = r?.course?.mk_pilihan === true;
+      if (isPilihan) passedElectiveCodes.push(kode);
+      else passedRegularCodes.add(kode);
+    }
+
+    // bikin deterministik (biar cache stabil)
+    const regularSorted = Array.from(passedRegularCodes).sort((a, b) => a.localeCompare(b));
+    const electiveSorted = Array.from(new Set(passedElectiveCodes)).sort((a, b) => a.localeCompare(b));
+
+    const courses_passed_for_ai: string[] = [
+      ...regularSorted,
+      ...electiveSorted.map((_, idx) => `MK_PILIHAN${idx + 1}`),
+    ];
+
+    // ---- mk_pilihan_failed deterministik ----
     const mk_pilihan_failed = Array.from(
       new Set(
         (failedRows ?? [])
-          .filter((r: any) => r?.course?.mk_pilihan === true)
-          .map((r: any) => (r?.course?.kode ?? '').toString().trim())
-          .filter((kode: string) => kode.length > 0)
-      )
-    );
+          .filter((r) => r?.course?.mk_pilihan === true)
+          .map((r) => String(r?.course?.kode ?? '').trim())
+          .filter(Boolean),
+      ),
+    ).sort((a, b) => a.localeCompare(b));
 
-    // Buat array final untuk dikirim ke AI
-    const courses_passed_for_ai: string[] = [];
-    let electiveCounter = 1;
-    
-    for (const course of uniqueCourses.values()) {
-      if (course.isPilihan) { 
-        courses_passed_for_ai.push(`MK_PILIHAN${electiveCounter}`);
-        electiveCounter++;
-      } else {
-        courses_passed_for_ai.push(course.kode);
-      }
-    }
-
-    // Call AI
+    // D) Call AI
     const base = process.env.AI_BASE_URL;
     if (!base) return { status: 500, body: { error: 'AI_BASE_URL is not configured' } };
 
+    const payload = {
+      current_semester,
+      courses_passed: courses_passed_for_ai,
+      mk_pilihan_failed,
+    };
+
     if (showDebugConsole) {
-      console.log('[AI RECOMMEND] Sending payload to AI service:', {
+      console.log('[AI RECOMMEND] Sending payload:', {
         studentId,
         current_semester,
         courses_passed_count: courses_passed_for_ai.length,
-        courses_passed: courses_passed_for_ai, 
-        mk_pilihan_failed,
+        mk_pilihan_failed_count: mk_pilihan_failed.length,
       });
     }
 
     const res = await fetchWithTimeout(joinUrl(base, '/recommend/'), {
       method: 'POST',
       headers: { 'content-type': 'application/json', accept: 'application/json' },
-      body: JSON.stringify({ 
-        current_semester, 
-        courses_passed: courses_passed_for_ai,
-        mk_pilihan_failed
-      }),
+      body: JSON.stringify(payload),
       timeoutMs: 15_000,
     });
-    
+
     if (!res.ok) {
       const text = await res.text().catch(() => '');
-      return {
-        status: 502,
-        body: { error: `AI service error (${res.status}): ${text || res.statusText}` },
-      };
+      return { status: 502, body: { error: `AI service error (${res.status}): ${text || res.statusText}` } };
     }
 
     const data = await res.json().catch(() => null);
@@ -293,8 +308,9 @@ async function computeRecommendPure(studentId: string): Promise<ComputeResult> {
     }
 
     return { status: 200, body: data as AiRecommendationItem[] };
-  } catch (e: any) {
-    return { status: 500, body: { error: e?.message || 'Internal Server Error' } };
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : 'Internal Server Error';
+    return { status: 500, body: { error: msg } };
   }
 }
 
@@ -311,23 +327,19 @@ function cachedRecommend(studentId: string) {
 }
 
 // ---------- 3) Handler: auth & guard DI LUAR cache ----------
-export async function POST(req: NextRequest, context: { params: Promise<{ id: string }> }) {
-  const { id: studentId } = await context.params;
-  if (!studentId || !isUuidLike(studentId)) {
-    return NextResponse.json({ error: 'Invalid student id' }, { status: 400 });
-  }
-
+async function ensureAuthAndOwnership(studentId: string) {
   const supabaseUser = await createSupabaseServerClient();
   const { data: { user }, error: userErr } = await supabaseUser.auth.getUser();
-  if (userErr) return NextResponse.json({ error: userErr.message }, { status: 500 });
-  if (!user)   return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (userErr) return { error: NextResponse.json({ error: userErr.message }, { status: 500 }) };
+  if (!user)   return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) };
 
   const { data: profile, error: profErr } = await supabaseUser
     .from('profiles')
     .select('role, nim')
     .eq('id', user.id)
     .single();
-  if (profErr) return NextResponse.json({ error: profErr.message }, { status: 500 });
+
+  if (profErr) return { error: NextResponse.json({ error: profErr.message }, { status: 500 }) };
 
   const isAdmin = profile?.role === 'admin';
   if (!isAdmin) {
@@ -337,9 +349,24 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
       .eq('id', studentId)
       .eq('nim', profile?.nim ?? '')
       .maybeSingle();
-    if (selfErr) return NextResponse.json({ error: selfErr.message }, { status: 500 });
-    if (!selfStudent) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+
+    if (selfErr) return { error: NextResponse.json({ error: selfErr.message }, { status: 500 }) };
+    if (!selfStudent) return { error: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) };
   }
+
+  return { ok: true as const };
+}
+
+// POST (no-store)
+export async function POST(req: NextRequest, context: { params: Promise<{ id: string }> }) {
+  const { id: studentId } = await context.params;
+
+  if (!studentId || !isUuidLike(studentId)) {
+    return NextResponse.json({ error: 'Invalid student id' }, { status: 400 });
+  }
+
+  const auth = await ensureAuthAndOwnership(studentId);
+  if ('error' in auth) return auth.error;
 
   const useCache = new URL(req.url).searchParams.get('cache') !== '0';
 
@@ -347,9 +374,29 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
     ? await cachedRecommend(studentId)()
     : await computeRecommendPure(studentId);
 
-  if (!useCache) {
-    revalidateTag(`student:${studentId}`);
+  if (!useCache) revalidateTag(`student:${studentId}`);
+
+    return jsonNoStore(result.body, result.status);
+}
+
+// GET mirror (private cache)
+export async function GET(req: NextRequest, context: { params: Promise<{ id: string }> }) {
+  const { id: studentId } = await context.params;
+
+  if (!studentId || !isUuidLike(studentId)) {
+    return NextResponse.json({ error: 'Invalid student id' }, { status: 400 });
   }
 
-  return NextResponse.json(result.body, { status: result.status });
+  const auth = await ensureAuthAndOwnership(studentId);
+  if ('error' in auth) return auth.error;
+
+  const useCache = new URL(req.url).searchParams.get('cache') !== '0';
+
+  const result = useCache
+    ? await cachedRecommend(studentId)()
+    : await computeRecommendPure(studentId);
+
+  if (!useCache) revalidateTag(`student:${studentId}`);
+
+  return jsonPrivate(result.body, result.status);
 }

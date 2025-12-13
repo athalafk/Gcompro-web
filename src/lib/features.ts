@@ -1,4 +1,4 @@
-import { createAdminClient } from "./supabase";
+import { createAdminClient } from './supabase';
 
 export interface Features {
   IPK_Terakhir: number;
@@ -10,10 +10,18 @@ export interface Features {
   Jumlah_MK_Gagal: number;
   Total_SKS_Gagal: number;
   Tren_IPS_Slope: number;
-  Profil_Tren: string; // "Menaik" | "Menurun" | "Stabil"
-  Perubahan_Kinerja_Terakhir: number; // IPS_Terakhir - IPK_Terakhir
-  IPK_Ternormalisasi_SKS: number;     // (Total_SKS/144) * IPK_Terakhir
+  Profil_Tren: string;
+  Perubahan_Kinerja_Terakhir: number;
+  IPK_Ternormalisasi_SKS: number;
 }
+
+export type FeatureBundle = {
+  feat: Features;
+  meta: {
+    semesterIdForSave: string | null;
+    deltaIps: number;
+  };
+};
 
 /**
  * Regresi linier sederhana untuk slope (m) dari titik (x,y).
@@ -37,70 +45,90 @@ function calculateSlope(points: { x: number; y: number }[]): number {
   return numerator / denominator;
 }
 
+type SemRow = { semester_no: number | null; ips: number | null };
+type FailedRow = { sks: number | null };
+type CumRow = {
+  ipk_cum: number | null;
+  sks_total: number | null;
+  last_semester_id: string | null;
+};
+
 /**
- * Ekstraksi fitur dari Supabase sesuai logika notebook Python.
- * Sumber data:
- * - cumulative_stats (gpa_cum, sks_total)
- * - v_student_semester_scores (semester_no, ips)
- * - enrollments (grade_index in D/E) → count & sum(sks)
+ * Ekstraksi fitur (DB-driven):
+ * - cumulative_stats.ipk_cum, cumulative_stats.sks_total, cumulative_stats.last_semester_id
+ * - semester_stats (semester_no, ips)
+ * - enrollments (FINAL + Tidak Lulus) -> count & sum(sks)
+ *
+ * Return:
+ * - feat: fitur untuk AI payload
+ * - meta: data tambahan untuk route (semesterIdForSave + deltaIps) biar route nggak fetch lagi
  */
-export async function extractFeatures(studentId: string): Promise<Features> {
+export async function extractFeatures(studentId: string): Promise<FeatureBundle> {
   const supabase = createAdminClient();
 
+  // 1) cumulative_stats: IPK + SKS + last_semester_id
   const { data: cumStats, error: cumErr } = await supabase
-    .from("cumulative_stats")
-    .select("gpa_cum, sks_total")
-    .eq("student_id", studentId)
-    .maybeSingle();
+    .from('cumulative_stats')
+    .select('ipk_cum, sks_total, last_semester_id')
+    .eq('student_id', studentId)
+    .maybeSingle<CumRow>();
 
-  if (cumErr) {
-    console.warn("cumulative_stats error:", cumErr);
-  }
+  if (cumErr) console.warn('cumulative_stats error:', cumErr);
 
-  const { data: vsss, error: vsssErr } = await supabase
-    .from("v_student_semester_scores")
-    .select("semester_no, ips")
-    .eq("student_id", studentId)
-    .order("semester_no", { ascending: true });
+  const ipkTerakhir = Number(cumStats?.ipk_cum ?? 0);
+  const totalSKS = Number(cumStats?.sks_total ?? 0);
+  const semesterIdForSave: string | null = cumStats?.last_semester_id ?? null;
 
-  if (vsssErr) {
-    console.warn("v_student_semester_scores error:", vsssErr);
-  }
+  // 2) semester_stats: IPS series
+  const { data: semStats, error: semStatsErr } = await supabase
+    .from('semester_stats')
+    .select('semester_no, ips')
+    .eq('student_id', studentId)
+    .not('semester_no', 'is', null)
+    .order('semester_no', { ascending: true })
+    .returns<SemRow[]>();
 
-  const ipsVals = (vsss ?? [])
-    .map(r => Number(r.ips ?? 0))
+  if (semStatsErr) console.warn('semester_stats error:', semStatsErr);
+
+  const ipsVals = (semStats ?? [])
+    .map((r) => Number(r.ips ?? 0))
     .filter(Number.isFinite);
 
-  const ipkTerakhir = Number(cumStats?.gpa_cum ?? 0);
   const ipsTerakhir = ipsVals.length ? ipsVals[ipsVals.length - 1] : 0;
-  const totalSKS = Number(cumStats?.sks_total ?? 0);
-
   const ipsTertinggi = ipsVals.length ? Math.max(...ipsVals) : 0;
   const ipsTerendah = ipsVals.length ? Math.min(...ipsVals) : 0;
 
-  const { data: failedCourses, count: failedCount } = await supabase
-    .from("enrollments")
-    .select("sks", { count: "exact" })
-    .eq("student_id", studentId)
-    .in("grade_index", ["D", "E"]);
+  // delta IPS untuk ml_features
+  const deltaIps = ipsVals.length >= 2 ? ipsVals.at(-1)! - ipsVals.at(-2)! : 0;
+
+  // 3) MK gagal (FINAL + Tidak Lulus)
+  const { data: failedCourses, count: failedCount, error: failErr } = await supabase
+    .from('enrollments')
+    .select('sks, kelulusan', { count: 'exact' })
+    .eq('student_id', studentId)
+    .eq('status', 'FINAL')
+    .eq('kelulusan', 'Tidak Lulus')
+    .returns<FailedRow[]>();
+
+  if (failErr) console.warn('enrollments failed error:', failErr);
 
   const jumlahMkGagal = failedCount ?? 0;
   const totalSksGagal = (failedCourses ?? []).reduce((s, r) => s + Number(r.sks ?? 0), 0);
 
-  const semesterPoints =
-    (vsss ?? [])
-      .filter(r => Number.isFinite(r.semester_no) && Number.isFinite(r.ips))
-      .map(r => ({ x: Number(r.semester_no), y: Number(r.ips) }));
+  // 4) slope IPS (trend)
+  const semesterPoints = (semStats ?? [])
+    .filter((r) => Number.isFinite(r.semester_no) && Number.isFinite(r.ips))
+    .map((r) => ({ x: Number(r.semester_no), y: Number(r.ips) }));
 
   const trenIpsSlope = calculateSlope(semesterPoints);
+  const profilTren = trenIpsSlope > 0.01 ? 'Menaik' : (trenIpsSlope < -0.01 ? 'Menurun' : 'Stabil');
 
-  const profilTren = trenIpsSlope > 0.01 ? "Menaik" : (trenIpsSlope < -0.01 ? "Menurun" : "Stabil");
-
+  // 5) derived features
   const perubahanKinerjaTerakhir = ipsTerakhir - ipkTerakhir;
   const TARGET_SKS = 144;
   const ipkTernormalisasiSKS = totalSKS ? (totalSKS / TARGET_SKS) * ipkTerakhir : 0;
 
-  return {
+  const feat: Features = {
     IPK_Terakhir: ipkTerakhir,
     IPS_Terakhir: ipsTerakhir,
     Total_SKS: totalSKS,
@@ -114,4 +142,6 @@ export async function extractFeatures(studentId: string): Promise<Features> {
     Perubahan_Kinerja_Terakhir: perubahanKinerjaTerakhir,
     IPK_Ternormalisasi_SKS: ipkTernormalisasiSKS,
   };
+
+  return { feat, meta: { semesterIdForSave, deltaIps } };
 }

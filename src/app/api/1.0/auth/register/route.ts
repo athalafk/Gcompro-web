@@ -3,7 +3,7 @@
  * /auth/register:
  *   post:
  *     summary: Daftarkan akun baru menggunakan Supabase email/password.
- *     tags: [Auth]
+ *     tags: [deprecated]
  *     requestBody:
  *       required: true
  *       content:

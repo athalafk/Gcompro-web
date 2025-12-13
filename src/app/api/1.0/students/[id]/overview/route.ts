@@ -3,7 +3,7 @@
  * /students/{id}/overview:
  *   get:
  *     summary: Overview mahasiswa (tren IPS & IPK, distribusi grade, dan risk terkini)
- *     tags: [Students]
+ *     tags: [deprecated]
  *     parameters:
  *       - in: path
  *         name: id

@@ -8,7 +8,7 @@
  *       Endpoint helper internal agar bisa mengambil **JWT access_token** & **refresh_token**
  *       langsung dari Swagger UI menggunakan kredensial NIM + password.
  *       Email dibentuk dari pola: `nim@{NEXT_PUBLIC_STUDENT_EMAIL_DOMAIN|campus.ac.id}`.
- *     tags: [Admin]
+ *     tags: [debug]
  *     security:
  *       - ServiceRoleAuth: []
  *     requestBody:
