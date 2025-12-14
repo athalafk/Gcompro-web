@@ -210,7 +210,7 @@ export default function RiskAnalysisView({ studentId }: { studentId: string }) {
             )}
             
             <p className="text-xs text-gray-400 mt-4">
-              *Kategori ini dihitung dari kombinasi faktor IPK, IPS, serta jumlah SKS yang telah diselesaikan.
+              *Status risiko memprediksi potensi keterlambatan kelulusan atau evaluasi studi (DO) jika pola akademik saat ini berlanjut tanpa perbaikan. Kategori ini didapat dari kombinasi faktor IPK, IPS, serta jumlah SKS yang telah diselesaikan.
             </p>
           </div>
 
